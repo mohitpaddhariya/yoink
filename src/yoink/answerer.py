@@ -90,12 +90,11 @@ def _build_command(
     session_id: str | None,
     recall_prompt: str,
     *,
-    claude_bin: str = "claude",
     output_format: str = "json",
     verbose: bool = False,
     model: str | None = None,
 ) -> list[str]:
-    cmd = [claude_bin, "-p"]
+    cmd = ["claude", "-p"]
     if session_id:
         cmd += ["--resume", session_id]
     cmd += ["--fork-session", "--permission-mode", "plan", "--output-format", output_format]
@@ -115,7 +114,6 @@ def run_answerer(
     recall_prompt: str,
     *,
     timeout: float = DEFAULT_TIMEOUT,
-    claude_bin: str = "claude",
     model: str | None = None,
     parse_answer=_default_parse,
 ) -> AnswererResult:
@@ -123,7 +121,7 @@ def run_answerer(
     if not os.path.isdir(target_project_cwd):
         return _fail(ErrorKind.CWD_NOT_FOUND, f"target project cwd not found: {target_project_cwd}")
 
-    cmd = _build_command(session_id, recall_prompt, claude_bin=claude_bin, model=model)
+    cmd = _build_command(session_id, recall_prompt, model=model)
     try:
         # stdin=DEVNULL: when the broker runs as an MCP stdio server, its stdin IS the
         # protocol channel — the resumed claude must never inherit/read it.
@@ -132,7 +130,7 @@ def run_answerer(
             capture_output=True, text=True, errors="replace", timeout=timeout,
         )
     except FileNotFoundError:
-        return _fail(ErrorKind.BINARY_NOT_FOUND, f"claude binary not found: {claude_bin}")
+        return _fail(ErrorKind.BINARY_NOT_FOUND, "claude binary not found")
     except subprocess.TimeoutExpired as exc:
         return _fail(ErrorKind.TIMEOUT, f"timed out after {timeout}s", stderr_excerpt=_excerpt(exc.stderr))
 
@@ -172,9 +170,9 @@ def run_answerer(
     return AnswererResult(True, result_text, answer, None, env.get("session_id"))
 
 
-def smoke_check(*, session_id=None, target_project_cwd=None, claude_bin="claude", timeout=SMOKE_TIMEOUT) -> SmokeResult:
+def smoke_check(*, session_id=None, target_project_cwd=None, timeout=SMOKE_TIMEOUT) -> SmokeResult:
     """Hard gate for the recall-only guarantee: prove the flags work AND no tools load."""
-    cmd = _build_command(session_id, SMOKE_PROMPT, claude_bin=claude_bin, output_format="stream-json", verbose=True)
+    cmd = _build_command(session_id, SMOKE_PROMPT, output_format="stream-json", verbose=True)
     cwd = target_project_cwd if (target_project_cwd and os.path.isdir(target_project_cwd)) else None
     try:
         proc = subprocess.run(
@@ -182,8 +180,8 @@ def smoke_check(*, session_id=None, target_project_cwd=None, claude_bin="claude"
             capture_output=True, text=True, errors="replace", timeout=timeout,
         )
     except FileNotFoundError:
-        return SmokeResult(False, False, False, f"claude binary not found: {claude_bin}",
-                           AnswererError(ErrorKind.BINARY_NOT_FOUND, claude_bin))
+        return SmokeResult(False, False, False, "claude binary not found",
+                           AnswererError(ErrorKind.BINARY_NOT_FOUND, "claude"))
     except subprocess.TimeoutExpired:
         return SmokeResult(False, False, False, f"smoke timed out after {timeout}s",
                            AnswererError(ErrorKind.TIMEOUT, "timeout"))

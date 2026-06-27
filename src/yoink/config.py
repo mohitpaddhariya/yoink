@@ -45,14 +45,12 @@ def load_config() -> Config:
     return Config(model=str(model), timeout=timeout)
 
 
-def save_config(*, model: str | None = None, timeout: float | None = None) -> Path:
-    """Merge the given keys into the config file (creating it) and return its path."""
+def save_config(*, model: str | None = None) -> Path:
+    """Merge the model into the config file (creating it) and return its path."""
     path = config_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     current = _read_file()
     if model is not None:
         current["model"] = model
-    if timeout is not None:
-        current["timeout"] = timeout
     path.write_text(json.dumps(current, indent=2) + "\n")
     return path

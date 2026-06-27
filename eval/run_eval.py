@@ -20,7 +20,7 @@ from evalkit import build_eval_prompt, grade, load_fixtures
 from yoink.prompts import parse_answer
 
 
-def _ask_model(prompt: str, timeout: float = 120) -> str:
+def _ask_model(prompt: str) -> str:
     # Prompt goes via stdin: `--tools` is greedy, so a positional prompt after
     # `--tools ""` gets swallowed as a tool name. stdin sidesteps that entirely.
     cmd = ["claude", "-p", "--output-format", "json", "--tools", ""]
@@ -32,7 +32,7 @@ def _ask_model(prompt: str, timeout: float = 120) -> str:
         input=prompt,
         capture_output=True,
         text=True,
-        timeout=timeout,
+        timeout=120,
     )
     if proc.returncode != 0:
         raise RuntimeError(f"claude exited {proc.returncode}: {proc.stderr.strip()[:300]}")
