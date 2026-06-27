@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -56,12 +57,13 @@ class ResolveResult:
 
 
 def cwd_to_slug(cwd: str) -> str:
-    """Claude Code project slug: every ``/``, ``.`` and ``_`` becomes ``-``. Lossy, non-invertible.
+    """Claude Code project slug: every non-alphanumeric char becomes ``-``. Lossy, non-invertible.
 
-    The ``_`` matters: Claude slugs ``/srv/my_app`` to ``-srv-my-app``, so a project path with an
-    underscore would otherwise be looked up in a directory that does not exist.
+    Claude maps ALL non-alphanumerics (``/``, ``.``, ``_``, spaces, parens, …) to ``-``; matching that
+    is what lets a project at e.g. ``/Users/me/My Project`` or ``/srv/app (2)`` resolve to its real
+    dir instead of a slug that preserves the space/paren and points nowhere.
     """
-    return cwd.replace("/", "-").replace(".", "-").replace("_", "-")
+    return re.sub(r"[^A-Za-z0-9]", "-", cwd)
 
 
 def _tokenize(text: str) -> set[str]:

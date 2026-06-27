@@ -27,11 +27,11 @@ OPUS_IN = 5.0 / 1e6  # $/token, Opus input — the cost of N transcript tokens i
 
 def _load() -> tuple[list, list]:
     cost = json.loads((RESULTS / "cost.json").read_text())
-    yoink = [(p["size_tokens"], p["yoink_cost"]) for p in cost["points"] if p.get("yoink_cost")]
-    full = [(p["size_tokens"], p["full_transcript_cost"]) for p in cost["points"] if p.get("full_transcript_cost")]
+    yoink = [(p["size_tokens"], p["yoink_cost"]) for p in cost["points"] if p.get("yoink_cost") is not None]
+    full = [(p["size_tokens"], p["full_transcript_cost"]) for p in cost["points"] if p.get("full_transcript_cost") is not None]
     try:  # stress adds measured yoink points at the larger sizes
         stress = json.loads((RESULTS / "stress.json").read_text())
-        yoink += [(p["size_tokens"], p["yoink_cost"]) for p in stress.get("cost_points", []) if p.get("yoink_cost")]
+        yoink += [(p["size_tokens"], p["yoink_cost"]) for p in stress.get("cost_points", []) if p.get("yoink_cost") is not None]
     except (OSError, ValueError):
         pass
     return sorted(set(yoink)), sorted(set(full))
@@ -74,7 +74,7 @@ def main() -> int:
     if factor >= 2:
         ax.annotate("", xy=(big[0], big[1]), xytext=(big[0], y_at_big[1]),
                     arrowprops=dict(arrowstyle="<->", color=INK, lw=1.6))
-        ax.text(big[0] * 1.15, (big[1] * y_at_big[1]) ** 0.5, f"{factor:.0f}× cheaper",
+        ax.text(big[0] * 1.15, (big[1] * y_at_big[1]) ** 0.5, f"{factor:.1f}× cheaper",
                 fontsize=12.5, color=INK, fontweight="bold", va="center")
 
     leg = ax.legend(loc="upper left", frameon=False, fontsize=11.5, handlelength=1.6, borderaxespad=0.8)

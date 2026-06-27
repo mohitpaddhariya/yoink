@@ -3,13 +3,16 @@
 Over a fixed set of real sessions spanning sizes (a few dead-end fixtures + synthetic
 haystacks at 5K/25K/100K tokens), measure four ways to answer the same question:
 
-    grep            — rg over the session .jsonl: ~free, instant, but can't tell decided from ruled-out
-    full-transcript — dump the whole transcript into Opus ("read it yourself"): the expensive upper bound
-    native resume   — `claude -p --resume <id> <q>` on Opus, tools on: "just resume it myself"
-    yoink           — Haiku + the recall prompt, tools off: the proposed system
+    grep            — rg/grep over the session .jsonl: ~free, instant, but matches words
+    full-transcript — dump the whole transcript into Opus ("read it yourself")
+    native resume   — `claude -p --resume <id> <q>` on Opus: "just resume it myself"
+    yoink           — Haiku + the recall prompt: the proposed system
 
-Every claude call reports its own `total_cost_usd`/usage, so costs are measured, not modelled.
-Writes results/cost.json and prints the STRATEGY §1.B public table.
+Every `claude` call reports its own `total_cost_usd`/usage, so costs are measured, not modelled.
+Fairness notes (hard-won from review): native-resume forks so it never pollutes the shared session
+yoink also reads; "live-context" is the transcript you'd carry (input) for resume-style methods vs
+the answer (output) for yoink; token counts include cache-resident transcript tokens; and a failed
+claude call is flagged `errored` and dropped from the aggregates rather than logged as a $0 row.
 
     uv run python benchmark/costbench.py
 """
@@ -35,6 +38,7 @@ RESULTS_DIR = Path(__file__).parent / "results"
 COST_JSON = RESULTS_DIR / "cost.json"
 OPUS = "opus"  # alias → current Opus; the "read it yourself in your live session" model
 HAYSTACK_SIZES = (5_000, 25_000, 100_000)
+HAYSTACK_Q = "What did we conclude was causing the auth failures?"  # matches make_haystack's default topic
 GREP = "rg" if shutil.which("rg") else "grep"  # ripgrep if installed, else POSIX grep
 
 
@@ -49,12 +53,9 @@ def _question_keywords(question: str) -> list[str]:
 
 
 def _graded(fx, result_text: str) -> tuple[bool, bool, str]:
-    """Decouple accuracy from dead-end leak so prose baselines are graded FAIRLY.
-
-    Accuracy = does the answer contain the conclusion (or abstain when it should)? Leak = does it
-    also surface a ruled-out term? grade()'s combined check fails any answer that *mentions* a dead
-    end — fine for yoink (its answer field is clean; ruled-out goes in a separate list) but unfair to
-    a prose dump that correctly says "X, having ruled out Y". Keeping them separate is the honest cut.
+    """Accuracy = does the answer contain the conclusion (or abstain when it should)?
+    Leak = does the answer text also surface a ruled-out term? (Track-A-only signal; cross-method it
+    favours yoink's structured output, so it is reported per-method but NOT as a head-to-head column.)
     """
     ans = parse_answer(result_text or "")
     text = ans.answer.lower()
@@ -67,11 +68,27 @@ def _graded(fx, result_text: str) -> tuple[bool, bool, str]:
     return bool(accuracy), leak, ans.answer
 
 
-def _row(method, *, accuracy, leak, latency_ms, in_tok, out_tok, cost, live_ctx, overflow, has_ex, answer="") -> dict:
-    return {"method": method, "accuracy": accuracy, "dead_end_leak": leak, "has_excludes": has_ex,
-            "latency_ms": latency_ms, "input_tokens": in_tok, "output_tokens": out_tok,
-            "cost_usd": cost or 0.0, "live_context_tokens": live_ctx, "overflow": overflow,
-            "answer": answer[:200]}
+def _row(method, *, accuracy=False, leak=False, latency_ms=0.0, in_tok=0, out_tok=0, cache_tok=0,
+         cost=0.0, live_ctx=0, overflow=False, has_ex=False, answer="", errored=False) -> dict:
+    return {"method": method, "errored": errored, "accuracy": accuracy, "dead_end_leak": leak,
+            "has_excludes": has_ex, "latency_ms": latency_ms, "input_tokens": in_tok,
+            "output_tokens": out_tok, "cache_tokens": cache_tok, "cost_usd": cost or 0.0,
+            "live_context_tokens": live_ctx, "overflow": overflow, "answer": answer[:200]}
+
+
+def _model_row(method, run, fx, *, live_ctx, overflow=False) -> dict:
+    """Decode a claude envelope into a row. A nonzero exit / error / undecodable output is flagged
+    `errored` (zeros) so it never silently becomes a $0, accuracy=False data point."""
+    m = usage.envelope_metrics(run.stdout)
+    if run.returncode != 0 or not m or m.get("is_error"):
+        return _row(method, errored=True, latency_ms=run.latency_ms,
+                    has_ex=bool(fx.expect.get("conclusion_excludes")))
+    passed, leak, answer = _graded(fx, m.get("result_text"))
+    return _row(method, accuracy=passed, leak=leak, latency_ms=run.latency_ms,
+                in_tok=m["input_tokens"], out_tok=m["output_tokens"],
+                cache_tok=m["cache_read_tokens"] + m["cache_creation_tokens"], cost=m["cost_usd"],
+                live_ctx=live_ctx(m), overflow=overflow,
+                has_ex=bool(fx.expect.get("conclusion_excludes")), answer=answer)
 
 
 def bl_grep(fx, ref) -> dict:
@@ -81,11 +98,12 @@ def bl_grep(fx, ref) -> dict:
     base = [GREP, "-i", "-F"] + (["--no-filename"] if GREP == "rg" else [])  # grep on one file prints none
     run = usage.measure([*base, *pattern_args, str(path)])
     matches = run.stdout.lower()
-    gold = all(k.lower() in matches for k in fx.expect.get("conclusion_contains", [])) if fx.expect.get("conclusion_contains") else False
+    gold = bool(fx.expect.get("conclusion_contains")) and all(
+        k.lower() in matches for k in fx.expect.get("conclusion_contains", []))
     leak = any(k.lower() in matches for k in fx.expect.get("conclusion_excludes", []))
-    return _row("grep", accuracy=gold, leak=leak, latency_ms=run.latency_ms, in_tok=0, out_tok=0,
-                cost=0.0, live_ctx=usage.count_tokens(run.stdout), overflow=False,
-                has_ex=bool(fx.expect.get("conclusion_excludes")))
+    # grep loads nothing into your live context except the lines you eyeball:
+    return _row("grep", accuracy=gold, leak=leak, latency_ms=run.latency_ms,
+                live_ctx=usage.count_tokens(run.stdout), has_ex=bool(fx.expect.get("conclusion_excludes")))
 
 
 def bl_full_transcript(fx, ref) -> dict:
@@ -93,51 +111,45 @@ def bl_full_transcript(fx, ref) -> dict:
     prompt = (f"<transcript>\n{text}\n</transcript>\n\n"
               f"Based only on the transcript above, answer concisely: {fx.question}")
     run = usage.measure(["claude", "-p", "--model", OPUS, "--permission-mode", "plan",
-                         "--output-format", "json", "--tools", ""], input=prompt, timeout=900)
-    m = usage.envelope_metrics(run.stdout) or {}
-    passed, leak, answer = _graded(fx, m.get("result_text"))
+                         "--output-format", "json", "--tools", ""],
+                        input=prompt, cwd=ref["cwd"], timeout=900)  # cwd isolates the throwaway session
     tokens = usage.count_tokens(text)
-    return _row("full-transcript", accuracy=passed, leak=leak, latency_ms=run.latency_ms,
-                in_tok=m.get("input_tokens", 0), out_tok=m.get("output_tokens", 0), cost=m.get("cost_usd"),
-                live_ctx=tokens, overflow=tokens > usage.CONTEXT_WINDOW,
-                has_ex=bool(fx.expect.get("conclusion_excludes")), answer=answer)
+    # you dumped the whole transcript into your context:
+    return _model_row("full-transcript", run, fx, live_ctx=lambda m: tokens,
+                      overflow=tokens > usage.CONTEXT_WINDOW)
 
 
 def bl_native_resume(fx, ref) -> dict:
-    run = usage.measure(["claude", "-p", "--resume", ref["session_id"], "--model", OPUS,
+    # --fork-session: isolate AND never mutate the shared session that yoink also reads.
+    run = usage.measure(["claude", "-p", "--resume", ref["session_id"], "--fork-session", "--model", OPUS,
                          "--permission-mode", "plan", "--output-format", "json", fx.question],
                         cwd=ref["cwd"], timeout=900)
-    m = usage.envelope_metrics(run.stdout) or {}
-    passed, leak, answer = _graded(fx, m.get("result_text"))
-    return _row("native-resume", accuracy=passed, leak=leak, latency_ms=run.latency_ms,
-                in_tok=m.get("input_tokens", 0), out_tok=m.get("output_tokens", 0), cost=m.get("cost_usd"),
-                live_ctx=m.get("output_tokens", 0), overflow=False,
-                has_ex=bool(fx.expect.get("conclusion_excludes")), answer=answer)
+    # resuming it yourself loads the ENTIRE transcript into your context — fresh input PLUS the
+    # cache-resident transcript (most of it counts as cached, not fresh input):
+    return _model_row("native-resume", run, fx,
+                      live_ctx=lambda m: m["input_tokens"] + m["cache_read_tokens"] + m["cache_creation_tokens"])
 
 
 def bl_yoink(fx, ref, model) -> dict:
     cmd = answerer._build_command(ref["session_id"], build_recall_prompt(fx.question), model=model)
     run = usage.measure(cmd, cwd=ref["cwd"], timeout=900)
-    m = usage.envelope_metrics(run.stdout) or {}
-    passed, leak, answer = _graded(fx, m.get("result_text"))
-    return _row("yoink", accuracy=passed, leak=leak, latency_ms=run.latency_ms,
-                in_tok=m.get("input_tokens", 0), out_tok=m.get("output_tokens", 0), cost=m.get("cost_usd"),
-                live_ctx=m.get("output_tokens", 0), overflow=False,
-                has_ex=bool(fx.expect.get("conclusion_excludes")), answer=answer)
+    # yoink reads in an isolated process and hands back only the answer:
+    return _model_row("yoink", run, fx, live_ctx=lambda m: m["output_tokens"])
 
 
 def _session_set(fixtures):
     de = [f for f in fixtures if f.category == "dead_end_suppression"][:3]
     hay = [sessions.make_haystack(
         fixture_id=f"hay-{n}", conclusion="connection pool exhaustion", deadend="postgres",
-        question="What did we conclude was causing the timeouts?",
-        target_tokens=n, position="end", distractors=10) for n in HAYSTACK_SIZES]
+        question=HAYSTACK_Q, target_tokens=n, position="end", distractors=10) for n in HAYSTACK_SIZES]
     return de + hay
 
 
 def _aggregate(rows: list[dict]) -> dict:
     by_method = defaultdict(list)
     for r in rows:
+        if r.get("errored"):
+            continue  # a failed claude call must not skew cost/accuracy
         by_method[r["method"]].append(r)
     out = {}
     for method, rs in by_method.items():
@@ -149,7 +161,8 @@ def _aggregate(rows: list[dict]) -> dict:
             "dead_end_rate": (sum(r["dead_end_leak"] for r in with_ex) / len(with_ex)) if with_ex else None,
             "p50_latency_ms": statistics.median(lats),
             "p95_latency_ms": lats[min(len(lats) - 1, int(0.95 * len(lats)))],
-            "mean_tokens": sum(r["input_tokens"] + r["output_tokens"] for r in rs) / len(rs),
+            # include cache-resident transcript tokens: a resumed transcript is processed, just cached
+            "mean_tokens": sum(r["input_tokens"] + r["output_tokens"] + r["cache_tokens"] for r in rs) / len(rs),
             "mean_cost_usd": sum(r["cost_usd"] for r in rs) / len(rs),
             "mean_live_context": sum(r["live_context_tokens"] for r in rs) / len(rs),
             "overflow_rate": sum(r["overflow"] for r in rs) / len(rs),
@@ -157,19 +170,17 @@ def _aggregate(rows: list[dict]) -> dict:
     return out
 
 
-# Ordered for the public table; cost.png reads the per-session points below.
 _ORDER = ["grep", "full-transcript", "native-resume", "yoink"]
 
 
 def _print_table(agg: dict) -> None:
-    print(f"\n{'method':<16}{'acc':>6}{'dead-end':>10}{'p50 ms':>9}{'tok/q':>9}{'cost/q':>10}{'live-ctx':>10}{'overflow':>10}")
-    print("-" * 84)
+    print(f"\n{'method':<16}{'acc':>6}{'p50 ms':>9}{'tok/q':>9}{'cost/q':>10}{'live-ctx':>10}{'overflow':>10}")
+    print("-" * 74)
     for method in _ORDER:
         m = agg.get(method)
         if not m:
             continue
-        de = "—" if m["dead_end_rate"] is None else f"{m['dead_end_rate']*100:.0f}%"
-        print(f"{method:<16}{m['accuracy']*100:>5.0f}%{de:>10}{m['p50_latency_ms']:>9.0f}"
+        print(f"{method:<16}{m['accuracy']*100:>5.0f}%{m['p50_latency_ms']:>9.0f}"
               f"{m['mean_tokens']:>9.0f}{'$'+format(m['mean_cost_usd'],'.4f'):>10}"
               f"{m['mean_live_context']:>10.0f}{m['overflow_rate']*100:>9.0f}%")
 
@@ -184,30 +195,34 @@ def main(argv: list[str]) -> int:
     refs = sessions.build_all(sset, tracker=tracker)
 
     tracker.phase("cost/latency (track B)", len(sset) * 4)
-    rows = []
-    points = []  # per-session cost points for cost.png
+    rows, points = [], []
     for fx in sset:
         ref = refs[fx.id]
+        size_tokens = usage.count_tokens(_transcript_text(fx))
         per = {}
         for name, fn in (("grep", bl_grep), ("full-transcript", bl_full_transcript),
                          ("native-resume", bl_native_resume), ("yoink", lambda f, r: bl_yoink(f, r, model))):
             row = fn(fx, ref)
-            row["fixture_id"] = fx.id
-            row["size_tokens"] = usage.count_tokens(_transcript_text(fx))
+            row["fixture_id"], row["size_tokens"] = fx.id, size_tokens
             rows.append(row)
             per[name] = row
             tracker.step(f"{fx.id}:{name}")
-        points.append({"fixture_id": fx.id, "size_tokens": per["yoink"]["size_tokens"],
-                       "yoink_cost": per["yoink"]["cost_usd"],
-                       "full_transcript_cost": per["full-transcript"]["cost_usd"],
-                       "native_cost": per["native-resume"]["cost_usd"]})
+        # a cost point needs all three model methods to have succeeded
+        if not any(per[k].get("errored") for k in ("full-transcript", "native-resume", "yoink")):
+            points.append({"fixture_id": fx.id, "size_tokens": size_tokens,
+                           "yoink_cost": per["yoink"]["cost_usd"],
+                           "full_transcript_cost": per["full-transcript"]["cost_usd"],
+                           "native_cost": per["native-resume"]["cost_usd"]})
     tracker.done_phase()
 
     agg = _aggregate(rows)
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     COST_JSON.write_text(json.dumps({"summary": agg, "points": points, "rows": rows}, indent=2))
     _print_table(agg)
-    print(f"\nwrote {COST_JSON}")
+    n_err = sum(r.get("errored", False) for r in rows)
+    if n_err:
+        print(f"\n⚠ {n_err} errored call(s) dropped from aggregates")
+    print(f"wrote {COST_JSON}")
     return 0
 
 

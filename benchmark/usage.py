@@ -24,18 +24,25 @@ class Run:
 
 
 def measure(cmd: list[str], *, input: str | None = None, cwd: str | None = None, timeout: float = 300) -> Run:
-    """Run a command, wall-clock it. stdin is DEVNULL unless `input` is given."""
+    """Run a command, wall-clock it. stdin is DEVNULL unless `input` is given.
+
+    A timeout returns an errored Run (returncode -1) rather than raising, so one slow call in a
+    long paid benchmark loop is recorded and skipped, not allowed to crash the whole track.
+    """
     t0 = time.monotonic()
-    proc = subprocess.run(
-        cmd,
-        input=input,
-        cwd=cwd,
-        stdin=None if input is not None else subprocess.DEVNULL,
-        capture_output=True,
-        text=True,
-        errors="replace",
-        timeout=timeout,
-    )
+    try:
+        proc = subprocess.run(
+            cmd,
+            input=input,
+            cwd=cwd,
+            stdin=None if input is not None else subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            errors="replace",
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return Run("", f"timed out after {timeout}s", -1, (time.monotonic() - t0) * 1000)
     return Run(proc.stdout, proc.stderr, proc.returncode, (time.monotonic() - t0) * 1000)
 
 

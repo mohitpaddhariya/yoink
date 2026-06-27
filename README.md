@@ -50,9 +50,9 @@ separate, cheap step and hands back a paragraph.
 
 | The other session is… | Read it yourself | yoink |
 |---|---|---|
-| small (~5K) | $0.18 | **$0.04** |
-| medium (~25K) | $0.50 | **$0.08** |
-| big (~100K) | $1.71 | **$0.23** |
+| small (~5K) | $0.17 | **$0.04** |
+| medium (~25K) | $0.49 | **$0.08** |
+| big (~100K) | $1.69 | **$0.23** |
 | huge (>1M) | won't fit | **just works** |
 
 <sub>"Read it yourself" = a model reads the whole transcript (Opus) to answer; "yoink" = the Haiku recall. Measured `total_cost_usd`, both. yoink also hands back ~700 tokens instead of the whole transcript.</sub>

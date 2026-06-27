@@ -32,14 +32,18 @@ STRESS_PNG = Path(__file__).parent / "stress.png"
 SIZES = (5_000, 25_000, 100_000)
 POSITIONS = ("start", "mid", "end")
 CONCL, DEAD = "connection pool exhaustion", "postgres"
-Q = "What did we conclude was causing the timeouts?"
+Q = "What did we conclude was causing the auth failures?"  # matches make_haystack's default topic
 
 
 def _recall_measured(ref: dict, question: str, model: str):
+    """Returns (answer, cost_usd, latency_ms, errored). A failed/timed-out call is flagged errored so
+    it is not scored as a confident miss at $0."""
     cmd = answerer._build_command(ref["session_id"], build_recall_prompt(question), model=model)
     run = usage.measure(cmd, cwd=ref["cwd"], timeout=900)
-    m = usage.envelope_metrics(run.stdout) or {}
-    return parse_answer(m.get("result_text") or ""), (m.get("cost_usd") or 0.0), run.latency_ms
+    m = usage.envelope_metrics(run.stdout)
+    if run.returncode != 0 or not m or m.get("is_error"):
+        return parse_answer(""), 0.0, run.latency_ms, True
+    return parse_answer(m.get("result_text") or ""), (m.get("cost_usd") or 0.0), run.latency_ms, False
 
 
 def _cells():
@@ -96,20 +100,23 @@ def main(argv: list[str]) -> int:
     tracker.phase("stress recall (track C)", len(cells))
     results, grid = [], {}
     for kind, size, pos, dist, fx in cells:
-        ans, cost, lat = _recall_measured(refs[fx.id], fx.question, model)
-        passed, _ = grade(fx, ans)
+        ans, cost, lat, errored = _recall_measured(refs[fx.id], fx.question, model)
+        passed = (not errored) and grade(fx, ans)[0]
         row = {"kind": kind, "size_tokens": size, "position": pos, "distractors": dist,
-               "passed": passed, "cost_usd": cost, "latency_ms": lat, "abstained": ans.no_conclusion}
+               "passed": passed, "errored": errored, "cost_usd": cost, "latency_ms": lat,
+               "abstained": ans.no_conclusion}
         results.append(row)
         if kind == "grid":
             grid[(size, pos)] = row
         tracker.step(f"{kind} {size//1000}K {pos}")
     tracker.done_phase()
 
-    # measured cost-by-size points (mean yoink recall cost across positions) for cost.png
-    cost_points = [{"size_tokens": s,
-                    "yoink_cost": statistics.mean(grid[(s, p)]["cost_usd"] for p in POSITIONS)}
-                   for s in SIZES]
+    # measured cost-by-size points (mean yoink recall cost across non-errored positions) for cost.png
+    cost_points = []
+    for s in SIZES:
+        costs = [grid[(s, p)]["cost_usd"] for p in POSITIONS if not grid[(s, p)]["errored"]]
+        if costs:
+            cost_points.append({"size_tokens": s, "yoink_cost": statistics.mean(costs)})
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     STRESS_JSON.write_text(json.dumps(

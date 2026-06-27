@@ -37,8 +37,10 @@ def _recall_one(fx, ref: dict, model: str) -> dict:
     excludes = [k.lower() for k in fx.expect.get("conclusion_excludes", [])]
     if not res.ok:
         kind = res.error.kind.value if res.error else "unknown"
+        # has_excludes=False: an answerer error is not evidence of dead-end suppression, so it must
+        # not enter the dead_end_rate denominator as a free "clean" sample.
         return {"id": fx.id, "category": fx.category, "passed": False, "reasons": [f"answerer error: {kind}"],
-                "has_excludes": bool(excludes), "dead_end_leak": False,
+                "has_excludes": False, "dead_end_leak": False,
                 "should_abstain": should_abstain, "did_abstain": False, "answer": "", "ruled_out": []}
     ans = res.answer
     passed, reasons = grade(fx, ans)
@@ -148,15 +150,22 @@ def main(argv: list[str]) -> int:
     refs = sessions.build_all(fixtures, tracker=tracker)
 
     tracker.phase("recall (track A)", len(fixtures))
+    results = []
+
+    # Resolution FIRST, before any recall fork .jsonl is written into the slug dir: a fork copies its
+    # parent's title/body but has a newer mtime, so an in-flight one (marker not yet flushed) could
+    # out-rank the real target. Running resolution before recall makes it deterministic.
+    for fx in (f for f in fixtures if f.category == RESOLUTION):
+        results.append(_resolve_one(fx, refs[fx.id]))
+        tracker.step(fx.id)
 
     def work(fx):
-        ref = refs[fx.id]
-        r = _resolve_one(fx, ref) if fx.category == RESOLUTION else _recall_one(fx, ref, model)
+        r = _recall_one(fx, refs[fx.id], model)
         tracker.step(fx.id)
         return r
 
     with ThreadPoolExecutor(max_workers=8) as pool:
-        results = list(pool.map(work, fixtures))
+        results.extend(pool.map(work, (f for f in fixtures if f.category != RESOLUTION)))
     tracker.done_phase()
 
     report = _aggregate(results)

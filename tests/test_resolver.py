@@ -12,9 +12,11 @@ def test_cwd_to_slug_replaces_slash_and_dot():
     assert cwd_to_slug("/Users/m/code.example") == "-Users-m-code-example"
 
 
-def test_cwd_to_slug_replaces_underscore():
-    # Claude slugs "_" to "-" too; a mismatch here points the resolver at a nonexistent dir.
+def test_cwd_to_slug_replaces_all_non_alphanumerics():
+    # Claude maps every non-alphanumeric (_, space, parens, …) to "-"; a mismatch points the
+    # resolver at a nonexistent dir for that project.
     assert cwd_to_slug("/srv/my_app") == "-srv-my-app"
+    assert cwd_to_slug("/Users/me/My Project (2)") == "-Users-me-My-Project--2-"
 
 
 def test_excludes_caller_session(projects_root, repo):

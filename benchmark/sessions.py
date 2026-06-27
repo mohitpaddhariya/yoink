@@ -68,7 +68,9 @@ def _load_cache() -> dict:
 
 def _save_cache(cache: dict) -> None:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    CACHE_FILE.write_text(json.dumps(cache, indent=2))
+    tmp = CACHE_FILE.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(cache, indent=2))
+    tmp.replace(CACHE_FILE)  # atomic: a crash / parallel track mid-write never truncates the cache
 
 
 _cache_lock = threading.Lock()

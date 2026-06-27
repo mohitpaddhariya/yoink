@@ -5,9 +5,11 @@ parsing, progress math, and haystack-shaping that the harnesses depend on.
 """
 from types import SimpleNamespace
 
+import costbench
 import progress
 import sessions
 import usage
+from usage import Run
 
 
 def test_envelope_metrics_parses_and_tolerates_garbage():
@@ -54,3 +56,26 @@ def test_make_haystack_variants():
     update = sessions.make_haystack(fixture_id="p", question="q?", target_tokens=500,
                                     conclusion="connection pool", superseded="redis")
     assert update.expect["conclusion_excludes"] == ["redis"]  # the superseded option is what must not win
+
+
+# --- regressions locking the code-review honesty fixes (Track B fairness) ---
+
+def test_costbench_model_row_flags_errored_call():
+    fx = SimpleNamespace(expect={"conclusion_contains": ["x"]}, question="q?")
+    row = costbench._model_row("yoink", Run("", "boom", 1, 10.0), fx, live_ctx=lambda m: m["output_tokens"])
+    assert row["errored"] is True and row["cost_usd"] == 0.0  # a failed call is not a $0 data point
+
+
+def test_costbench_graded_decouples_accuracy_from_leak():
+    fx = SimpleNamespace(expect={"conclusion_contains": ["connection pool"], "conclusion_excludes": ["postgres"]},
+                         question="q?")
+    # a correct prose answer that names the ruled-out path: still ACCURATE, leak just flags the mention
+    acc, leak, _ = costbench._graded(fx, "The cause is connection pool exhaustion; postgres was ruled out.")
+    assert acc is True and leak is True
+
+
+def test_costbench_aggregate_drops_errored_and_counts_cache_tokens():
+    good = costbench._row("yoink", accuracy=True, in_tok=10, out_tok=5, cache_tok=1000, cost=0.02, live_ctx=5)
+    agg = costbench._aggregate([good, costbench._row("yoink", errored=True)])
+    assert agg["yoink"]["n"] == 1  # the errored row is excluded
+    assert agg["yoink"]["mean_tokens"] == 1015  # input + output + cache-resident transcript
