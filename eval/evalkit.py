@@ -103,11 +103,13 @@ def grade(fixture: Fixture, result: RecallAnswer) -> tuple[bool, list[str]]:
     answer = _normalize(result.answer)
     reasons: list[str] = []
 
-    # The anti-leak set always applies — even on the no_conclusion path, a result must
-    # never surface a curated forbidden conclusion.
-    for keyword in expect.get("conclusion_excludes", []):
-        if _normalize(keyword) in answer:
-            reasons.append(f"answer should not contain: {keyword!r}")
+    # Anti-leak applies only when the model CLAIMED a conclusion. On the no_conclusion path the
+    # answer isn't asserting a cause, so naming a ruled-out term ("ruled out postgres") is correct,
+    # not a leak — penalising it was a false negative.
+    if not result.no_conclusion:
+        for keyword in expect.get("conclusion_excludes", []):
+            if _normalize(keyword) in answer:
+                reasons.append(f"answer should not contain: {keyword!r}")
 
     if "no_conclusion" in expect:
         if bool(expect["no_conclusion"]) != result.no_conclusion:

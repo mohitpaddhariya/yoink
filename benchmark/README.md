@@ -89,11 +89,15 @@ implied conclusion.
 
 ![stress](stress.png)
 
-- **Recall held at every size AND every difficulty — easy / medium / hard all 100%.** Even with no
-  marker and a misdirection, yoink pulled the ratified conclusion at 5K, 25K and 100K.
+- **Easy and medium held at 100% across all sizes; the *hard* variant is genuinely harder.** With an
+  explicit marker (easy) or natural prose (medium), yoink pulled the conclusion at every size. The hard
+  variant — conclusion only *implied*, after a correction off a dead end, no marker — passed **8 of 9**
+  answerable cells (it missed the 25K cell this run). With one sample per cell it's noisy run-to-run,
+  but the difficulty knob is real, not decorative — it no longer guarantees a pass the way the marker did.
 - **Cost scales gently:** **$0.026 → $0.053 → $0.158** for 5K → 25K → 100K.
 - **Distractors don't fool it**, and it **picks the updated decision over the superseded one** at scale.
-- **The one miss is the unanswerable cell** — same abstention edge as Track A.
+- **On the unanswerable cell it correctly abstains** (no_conclusion, confidence none) — and naming a
+  ruled-out term while abstaining no longer counts as a leak (a grader false-negative the review caught).
 
 ## Did it hit the bar?
 

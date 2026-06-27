@@ -123,3 +123,13 @@ def test_grade_alias_groups_accept_synonyms():
     fixture = _fixture(expect={"conclusion_contains_any": [["clock drift", "clock skew", "ntp"]]})
     assert grade(fixture, RecallAnswer(answer="it was clock skew from NTP sync", answer_confidence="high"))[0]
     assert not grade(fixture, RecallAnswer(answer="it was a cache bug", answer_confidence="high"))[0]
+
+
+def test_grade_no_conclusion_may_name_a_ruled_out_term():
+    # Abstaining while naming an excluded term AS ruled-out is correct, not a dead-end leak.
+    fixture = _fixture(expect={"no_conclusion": True, "conclusion_excludes": ["postgres"]})
+    ans = RecallAnswer(answer="No root cause found; ruled out postgres.", answer_confidence="none", no_conclusion=True)
+    assert grade(fixture, ans)[0]
+    # but a SETTLED answer that surfaces the excluded term still fails.
+    settled = RecallAnswer(answer="the cause was postgres", answer_confidence="high", no_conclusion=False)
+    assert not grade(_fixture(expect={"conclusion_excludes": ["postgres"]}), settled)[0]
