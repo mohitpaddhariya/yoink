@@ -11,7 +11,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from prompts import RecallAnswer, build_recall_prompt
+from yoink.prompts import RecallAnswer, build_recall_prompt
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 

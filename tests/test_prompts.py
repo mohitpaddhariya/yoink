@@ -1,4 +1,4 @@
-from prompts import build_recall_prompt, parse_answer
+from yoink.prompts import build_recall_prompt, parse_answer
 
 
 def test_prompt_includes_question_and_recall_only_instruction():

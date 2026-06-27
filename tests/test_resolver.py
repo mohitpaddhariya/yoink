@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from helpers import write_transcript
-from resolver import cwd_to_slug, default_projects_root, resolve
+from yoink.resolver import cwd_to_slug, default_projects_root, resolve
 
 
 def _resolve(hint, projects_root, repo, caller_session_id=None, **kw):
@@ -189,7 +189,7 @@ def test_default_projects_root_respects_config_dir(monkeypatch):
 def test_huge_file_bounded_read_finds_tail_title(projects_root, repo):
     import json
 
-    import resolver as R
+    import yoink.resolver as R
 
     slug_dir = projects_root / cwd_to_slug(repo)
     slug_dir.mkdir(parents=True, exist_ok=True)

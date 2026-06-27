@@ -3,9 +3,9 @@ from types import SimpleNamespace
 import pytest
 from fastmcp import Client
 
-import broker
-from prompts import RecallAnswer
-from resolver import Candidate, ResolveResult
+import yoink.server as broker
+from yoink.prompts import RecallAnswer
+from yoink.resolver import Candidate, ResolveResult
 
 
 def _cand(session_id="s1", cwd="/p/payments", title="auth-debugging", mtime=1000.0):

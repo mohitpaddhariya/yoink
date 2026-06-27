@@ -36,7 +36,7 @@ ask_recorded_session(peer_hint, question)          # the one MCP tool
 The **recall-only guarantee** is enforced at the tool layer, not just the prompt: the resumed
 process runs with `--tools ""` (no built-in tools) and `--disallowedTools "mcp__*"`, so it
 physically cannot re-investigate — it can only recall. `--fork-session` keeps the peer's real
-history byte-for-byte untouched. `broker.py --health` is the hard gate that verifies this (it
+history byte-for-byte untouched. `yoink --health` is the hard gate that verifies this (it
 asserts the resumed process loaded **zero** tools).
 
 ## Install
@@ -44,7 +44,7 @@ asserts the resumed process loaded **zero** tools).
 One command (full guide in [`INSTALLING.md`](INSTALLING.md)):
 
 ```bash
-uv sync && uv run python install.py
+uv sync && uv run yoink-install
 ```
 
 The installer picks your **recall model** (saved to `~/.config/yoink/config.json`), registers the
@@ -53,8 +53,8 @@ runs a health check. Or set it up by hand:
 
 ```bash
 uv sync
-claude mcp add --scope user yoink -- uv run --directory "$(pwd)" python broker.py
-uv run python broker.py --health     # verify the recall-only flags work end-to-end
+claude mcp add --scope user yoink -- uv run --directory "$(pwd)" yoink
+uv run yoink --health     # verify the recall-only flags work end-to-end
 ```
 
 Configure the recall model and timeout in `~/.config/yoink/config.json` (or `YOINK_MODEL` /
@@ -67,7 +67,7 @@ Then in any Claude session, just ask in natural language:
 ### Or try it straight from the terminal
 
 ```bash
-uv run python ask.py --all "staging selfhost" "what is the deployment status and how is it accessed?"
+uv run yoink-ask --all "staging selfhost" "what is the deployment status and how is it accessed?"
 ```
 
 `--all` scans every project; omit it to search only the current directory's project (`--cwd DIR` to
@@ -114,11 +114,11 @@ Recall defaults to Haiku; override with `YOINK_MODEL=claude-opus-4-8` for richer
 ```bash
 uv sync                            # create the environment
 uv run pytest                      # fast, offline unit suite
-uv run python run_eval.py          # the dead-end correctness gate (live model calls)
+uv run python eval/run_eval.py          # the dead-end correctness gate (live model calls)
 YOINK_INTEGRATION=1 uv run pytest tests/test_integration.py   # live end-to-end
 ```
 
-The **dead-end gate** (`run_eval.py` + `fixtures/`) is the make-or-break test: it proves the recall
+The **dead-end gate** (`eval/run_eval.py` + `eval/fixtures/`) is the make-or-break test: it proves the recall
 prompt extracts the *ratified* conclusion from messy transcripts (wrong-then-right, flip-flops, user
 corrections, no-conclusion, two-issues, …) rather than a dead end.
 
@@ -126,17 +126,20 @@ corrections, no-conclusion, two-issues, …) rather than a dead end.
 
 ```
 yoink/
-├── prompts.py        # recall prompt + lenient/total answer parser (RecallAnswer)
-├── resolver.py       # session discovery: topic+recency ranking, fork/self exclusion, cwd guard
-├── answerer.py       # the verified claude -p --resume subprocess + typed errors + smoke gate
-├── provenance.py     # pure formatting: two confidences, safe failure, thresholds
-├── broker.py         # yoink FastMCP server (ask_recorded_session) + recall() + --health
-├── ask.py            # CLI test harness — ask a session from the terminal
-├── evalkit.py        # dead-end fixture loading + deterministic grading
-├── run_eval.py       # the dead-end correctness gate (live)
-├── fixtures/         # ≥10 dead-end scenarios
-├── tests/            # unit suite + gated live integration
-└── .claude/          # plan.md (source of truth) + build-spec.md
+├── pyproject.toml     # package + console scripts (yoink / yoink-ask / yoink-install)
+├── src/yoink/         # the installed package
+│   ├── server.py      # FastMCP server (ask_recorded_session) + recall() + --health
+│   ├── prompts.py     # recall prompt + lenient/total answer parser (RecallAnswer)
+│   ├── resolver.py    # session discovery: topic+recency ranking, fork/self exclusion, cwd guard
+│   ├── answerer.py    # the verified claude -p --resume subprocess + typed errors + smoke gate
+│   ├── provenance.py  # pure formatting: two confidences, safe failure, thresholds
+│   ├── config.py      # runtime config (model, timeout)
+│   ├── cli.py         # `yoink-ask` terminal harness
+│   └── install.py     # `yoink-install` first-time setup
+├── eval/              # dead-end correctness gate: evalkit.py, run_eval.py, fixtures/
+├── benchmark/         # measured cost benchmark + graph
+├── tests/             # unit suite + gated live integration
+└── .claude/           # plan.md + build-spec.md
 ```
 
 Built with [FastMCP](https://github.com/jlowin/fastmcp), managed with [uv](https://docs.astral.sh/uv/).

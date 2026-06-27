@@ -17,7 +17,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 
 from evalkit import build_eval_prompt, grade, load_fixtures
-from prompts import parse_answer
+from yoink.prompts import parse_answer
 
 
 def _ask_model(prompt: str, timeout: float = 120) -> str:

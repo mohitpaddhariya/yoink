@@ -8,13 +8,25 @@ dependencies = [
     "fastmcp>=3.4.2",
 ]
 
+[project.scripts]
+yoink = "yoink.server:main"
+yoink-ask = "yoink.cli:main"
+yoink-install = "yoink.install:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/yoink"]
+
 [dependency-groups]
 dev = ["pytest>=8", "pytest-asyncio>=0.24"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-pythonpath = ["."]
+pythonpath = ["eval"]
 markers = [
     "eval: live model-dependent integration test (needs YOINK_INTEGRATION=1 and the claude CLI)",
 ]

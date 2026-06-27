@@ -16,10 +16,10 @@ import subprocess
 import pytest
 from fastmcp import Client
 
-import broker
-import prompts
-from answerer import run_answerer
-from resolver import Candidate, ResolveResult
+import yoink.server as broker
+import yoink.prompts as prompts
+from yoink.answerer import run_answerer
+from yoink.resolver import Candidate, ResolveResult
 
 pytestmark = [
     pytest.mark.eval,

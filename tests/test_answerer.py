@@ -3,9 +3,9 @@ import subprocess
 
 import pytest
 
-import answerer
-from answerer import ErrorKind, _build_command, run_answerer, smoke_check
-from prompts import RecallAnswer
+import yoink.answerer as answerer
+from yoink.answerer import ErrorKind, _build_command, run_answerer, smoke_check
+from yoink.prompts import RecallAnswer
 
 
 class FakeProc:

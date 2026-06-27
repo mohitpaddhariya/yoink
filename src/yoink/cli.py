@@ -16,7 +16,7 @@ import argparse
 import os
 import sys
 
-import broker
+from . import server
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -29,7 +29,7 @@ def main(argv: list[str] | None = None) -> int:
 
     caller_cwd = os.path.abspath(os.path.expanduser(args.cwd)) if args.cwd else os.getcwd()
     print(
-        broker.recall(
+        server.recall(
             args.hint,
             args.question,
             caller_cwd=caller_cwd,

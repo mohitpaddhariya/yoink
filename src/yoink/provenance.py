@@ -10,8 +10,8 @@ from __future__ import annotations
 import os
 import time
 
-from prompts import RecallAnswer
-from resolver import Candidate
+from .prompts import RecallAnswer
+from .resolver import Candidate
 
 _NO_MATCH = "No matching recorded sessions found."
 

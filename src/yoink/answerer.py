@@ -19,8 +19,8 @@ import subprocess
 from dataclasses import dataclass
 from enum import Enum
 
-from prompts import RecallAnswer
-from prompts import parse_answer as _default_parse
+from .prompts import RecallAnswer
+from .prompts import parse_answer as _default_parse
 
 DEFAULT_TIMEOUT = 120.0
 SMOKE_TIMEOUT = 60.0
