@@ -20,6 +20,8 @@ dist/
 
 # Claude Code (local, per-machine)
 .claude/settings.local.json
+# internal planning / design docs — keep local, never publish
+.claude/*.md
 
 # benchmark run artifacts (machine-specific session ids + regenerable; numbers live in README + committed PNGs)
 benchmark/results/
