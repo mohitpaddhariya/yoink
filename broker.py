@@ -22,8 +22,39 @@ import resolver
 mcp = FastMCP("yoink")
 
 
+def recall(
+    peer_hint: str,
+    question: str,
+    *,
+    caller_cwd: str,
+    caller_session_id: str | None,
+    cross_project: bool = False,
+) -> str:
+    """The full resolve → answer → provenance flow. Blocking; never raises.
+
+    Shared by the MCP tool and the ``ask.py`` CLI so both behave identically.
+    """
+    if not question or not question.strip():
+        return 'Ask a question, e.g. "yoink what the auth session concluded about token refresh".'
+    try:
+        resolution = resolver.resolve(peer_hint, caller_session_id, caller_cwd, cross_project=cross_project)
+        if not resolution.candidates:
+            return provenance.format_no_match()
+        if resolution.source_match not in ("high", "medium"):
+            return provenance.format_disambiguation(resolution.candidates[:3])
+        best = resolution.candidates[0]
+        recall_prompt = prompts.build_recall_prompt(question)
+        result = answerer.run_answerer(best.session_id, best.target_project_cwd, recall_prompt)
+        if not result.ok:
+            message = result.error.message if result.error else "unknown error"
+            return provenance.format_answerer_error(best, message)
+        return provenance.format_provenance(best, resolution.source_match, result.answer)
+    except Exception as exc:  # noqa: BLE001 - never raise to the caller
+        return f"yoink could not complete: {exc}"
+
+
 @mcp.tool()
-async def ask_recorded_session(peer_hint: str, question: str) -> str:
+async def ask_recorded_session(peer_hint: str, question: str, all_projects: bool = False) -> str:
     """Grab a focused answer from another Claude session's RECORDED work.
 
     Use this when the user wants what a *different or earlier* Claude session already
@@ -38,31 +69,20 @@ async def ask_recorded_session(peer_hint: str, question: str) -> str:
     Args:
         peer_hint: a natural description of the target session ("the auth debugging one").
         question: what to ask that session.
+        all_projects: by default only the caller's own project is searched (privacy);
+            set true when the target session is in a different repo ("across all my sessions").
 
     Returns a focused answer with provenance, a short disambiguation list, or a no-match
     message.
     """
-    if not question or not question.strip():
-        return 'Ask a question, e.g. "yoink what the auth session concluded about token refresh".'
-    try:
-        caller_cwd = os.getcwd()
-        caller_session_id = os.environ.get("CLAUDE_SESSION_ID")
-        resolution = resolver.resolve(peer_hint, caller_session_id, caller_cwd)
-        if not resolution.candidates:
-            return provenance.format_no_match()
-        if resolution.source_match not in ("high", "medium"):
-            return provenance.format_disambiguation(resolution.candidates[:3])
-        best = resolution.candidates[0]
-        recall_prompt = prompts.build_recall_prompt(question)
-        result = await asyncio.to_thread(
-            answerer.run_answerer, best.session_id, best.target_project_cwd, recall_prompt
-        )
-        if not result.ok:
-            message = result.error.message if result.error else "unknown error"
-            return provenance.format_answerer_error(best, message)
-        return provenance.format_provenance(best, resolution.source_match, result.answer)
-    except Exception as exc:  # noqa: BLE001 - the tool must never raise to the client
-        return f"yoink could not complete: {exc}"
+    return await asyncio.to_thread(
+        recall,
+        peer_hint,
+        question,
+        caller_cwd=os.getcwd(),
+        caller_session_id=os.environ.get("CLAUDE_SESSION_ID"),
+        cross_project=all_projects,
+    )
 
 
 def run_health() -> int:

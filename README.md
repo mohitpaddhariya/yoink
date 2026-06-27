@@ -53,6 +53,15 @@ Then in any Claude session, just ask in natural language:
 
 > *yoink what the auth-debugging session concluded about the token refresh bug*
 
+### Or try it straight from the terminal
+
+```bash
+uv run python ask.py --all "staging selfhost" "what is the deployment status and how is it accessed?"
+```
+
+`--all` scans every project; omit it to search only the current directory's project (`--cwd DIR` to
+point elsewhere). This is the same resolve → recall → provenance flow the MCP tool runs, minus the agent.
+
 ## How answers are shaped
 
 - **Two confidences, never collapsed:** `source match` (did yoink pick the right session?) and
@@ -97,7 +106,8 @@ yoink/
 ├── resolver.py       # session discovery: topic+recency ranking, fork/self exclusion, cwd guard
 ├── answerer.py       # the verified claude -p --resume subprocess + typed errors + smoke gate
 ├── provenance.py     # pure formatting: two confidences, safe failure, thresholds
-├── broker.py         # yoink FastMCP server (ask_recorded_session) + --health
+├── broker.py         # yoink FastMCP server (ask_recorded_session) + recall() + --health
+├── ask.py            # CLI test harness — ask a session from the terminal
 ├── evalkit.py        # dead-end fixture loading + deterministic grading
 ├── run_eval.py       # the dead-end correctness gate (live)
 ├── fixtures/         # ≥10 dead-end scenarios
