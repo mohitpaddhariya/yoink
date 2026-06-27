@@ -93,11 +93,14 @@ def _build_command(
     claude_bin: str = "claude",
     output_format: str = "json",
     verbose: bool = False,
+    model: str | None = None,
 ) -> list[str]:
     cmd = [claude_bin, "-p"]
     if session_id:
         cmd += ["--resume", session_id]
     cmd += ["--fork-session", "--permission-mode", "plan", "--output-format", output_format]
+    if model:
+        cmd += ["--model", model]  # recall is extraction; a cheaper model is much cheaper and ~as good
     if verbose:
         cmd.append("--verbose")
     # --tools is greedy: the "" then --disallowedTools terminates it; the recall prompt
@@ -113,13 +116,14 @@ def run_answerer(
     *,
     timeout: float = DEFAULT_TIMEOUT,
     claude_bin: str = "claude",
+    model: str | None = None,
     parse_answer=_default_parse,
 ) -> AnswererResult:
     """Run the recall subprocess and return a typed result. Never raises operationally."""
     if not os.path.isdir(target_project_cwd):
         return _fail(ErrorKind.CWD_NOT_FOUND, f"target project cwd not found: {target_project_cwd}")
 
-    cmd = _build_command(session_id, recall_prompt, claude_bin=claude_bin)
+    cmd = _build_command(session_id, recall_prompt, claude_bin=claude_bin, model=model)
     try:
         # stdin=DEVNULL: when the broker runs as an MCP stdio server, its stdin IS the
         # protocol channel — the resumed claude must never inherit/read it.
