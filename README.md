@@ -1,145 +1,107 @@
-# yoink
+<p align="center">
+  <img src="assets/yoink.png" alt="yoink" width="240">
+</p>
 
-> Grab focused context from another Claude session, without copy-paste.
+<h1 align="center">yoink</h1>
 
-You run several Claude Code sessions at once. Each builds its own working context — files it
-checked, what it ruled out, what you clarified, its conclusion. When one session needs what another
-already worked out, you window-switch, scroll, copy, paste, re-explain.
+<p align="center"><em>It already figured this out. Just ask it.</em></p>
 
-**yoink** lets you ask, in plain language — *"yoink what the auth session concluded about token
-refresh"* — and get a focused, provenance-tagged answer drawn from that session's recorded work.
+<p align="center">
+recalls the answer, not the whole transcript · ~300 words back, not 300,000 · 3–18× cheaper than reading it yourself · read-only, never interrupts
+</p>
 
-## What it is — and what it is NOT
+---
 
-- **It IS:** asking another Claude session's **recorded working context**. yoink resumes that
-  session's on-disk transcript in a fresh, forked, **read-only** process and answers from it.
-- **It is NOT:** talking to or injecting into a live terminal. The other session is never touched.
-  Answers come from the last persisted turn, so they lag a live session by at most the in-flight turn.
+You've got five Claude sessions open. One of them already debugged the auth bug an hour ago. To use
+that now, you switch windows, scroll back, copy, paste, and explain it all over again — and half the
+time you just redo work that was already done.
 
-Think of it as *asking the peer's notes*, not interrupting the peer.
+yoink lets you ask, in plain words:
+
+> **what did my auth session conclude about the token bug?**
+
+and the other session answers — with the conclusion it actually landed on.
+
+## The trick: it knows what a session *decided*, not just what it *said*
+
+Ask about a real session:
+
+> **what did my staging session conclude about how to access the server?**
+
+```
+From staging-deploy · high confidence
+Answer:    It's on EC2, dashboard at staging.example.internal, admin access is the VPN only.
+Ruled out: SSH (the firewall blocks it) → use the VPN.  Kafka (there isn't any) → it's Redis.
+```
+
+That session *tried* SSH and *tried* Kafka, hit walls, and moved on. yoink gives you what it **settled
+on** — and files the abandoned guesses under **ruled out**. A plain search over the transcript would
+have handed you "SSH" and "Kafka," the dead ends, just because the words are there.
+
+That's the whole point: **yoink tells you what a session decided, not everything it tried.**
+
+## Cheaper than reading the transcript yourself
+
+<p align="center"><img src="benchmark/cost.png" alt="cost: native vs yoink" width="620"></p>
+
+Reading the other session "by hand" means loading its **whole transcript** into your chat — it's
+expensive, it clutters your context, and on a big session it simply doesn't fit. yoink reads it in a
+separate, cheap step and hands back a paragraph.
+
+| The other session is… | Read it yourself | yoink |
+|---|---|---|
+| small | $0.01 | $0.02 |
+| medium | $0.41 | **$0.12** |
+| big | $1.34 | **$0.08** |
+| huge | won't fit | **just works** |
 
 ## How it works
 
-```
-ask_recorded_session(peer_hint, question)          # the one MCP tool
-  └─ resolver.resolve(...)        → ranked candidate sessions + a source_match
-        ├─ no match / low         → "no match" or a pick-one disambiguation (no answerer call)
-        └─ high / medium          → best candidate
-              recall_prompt = prompts.build_recall_prompt(question)
-              answerer.run_answerer(session_id, target_project_cwd, recall_prompt)
-                 └─ claude -p --resume <id> --fork-session --permission-mode plan
-                    --tools "" --disallowedTools "mcp__*" --strict-mcp-config   (recall-only)
-                 └─ prompts.parse_answer(.result)  → RecallAnswer
-              provenance.format_provenance(best, source_match, answer)
-```
-
-The **recall-only guarantee** is enforced at the tool layer, not just the prompt: the resumed
-process runs with `--tools ""` (no built-in tools) and `--disallowedTools "mcp__*"`, so it
-physically cannot re-investigate — it can only recall. `--fork-session` keeps the peer's real
-history byte-for-byte untouched. `yoink --health` is the hard gate that verifies this (it
-asserts the resumed process loaded **zero** tools).
+1. You describe the session ("the auth one"). yoink finds it among your sessions.
+2. It re-opens that session's notes **read-only** and asks your question there.
+3. It hands you the answer, says which session it came from, and lists any dead ends.
 
 ## Install
 
-One command (full guide in [`INSTALLING.md`](INSTALLING.md)):
-
 ```bash
+git clone https://github.com/mohitpaddhariya/yoink && cd yoink
 uv sync && uv run yoink-install
 ```
 
-The installer picks your **recall model** (saved to `~/.config/yoink/config.json`), registers the
-MCP server, **patches your CLAUDE.md so Claude uses yoink instead of native transcript search**, and
-runs a health check. Or set it up by hand:
+That sets it up and tells Claude to reach for it on its own. Start a new Claude session and you're done.
+
+<sub>Prefer manual? `claude mcp add --scope user yoink -- uv run --directory "$(pwd)" yoink`</sub>
+
+## Use it
+
+Just ask, in any Claude session:
+
+> what did the &lt;topic&gt; session conclude about &lt;x&gt;?
+
+Or from a terminal:
 
 ```bash
-uv sync
-claude mcp add --scope user yoink -- uv run --directory "$(pwd)" yoink
-uv run yoink --health     # verify the recall-only flags work end-to-end
+uv run yoink-ask --all "staging" "how do I access the server?"
 ```
 
-Configure the recall model and timeout in `~/.config/yoink/config.json` (or `YOINK_MODEL` /
-`YOINK_TIMEOUT`); defaults to cheap Haiku recall.
+## Good to know
 
-Then in any Claude session, just ask in natural language:
+- **It reads, it never interrupts.** yoink looks at the other session's saved history. It never touches
+  the session you have running — the answer is from its last saved moment.
+- **It shows its work.** Which session, how confident. Trust it, or correct it.
+- **If it never reached a conclusion, it says so.** It won't invent one.
 
-> *yoink what the auth-debugging session concluded about the token refresh bug*
+## FAQ
 
-### Or try it straight from the terminal
+**Does it talk to my live session?** No — it reads the saved notes, read-only.
 
-```bash
-uv run yoink-ask --all "staging selfhost" "what is the deployment status and how is it accessed?"
-```
+**Which sessions can it see?** All of yours, on your machine. Nothing leaves your laptop.
 
-`--all` scans every project; omit it to search only the current directory's project (`--cwd DIR` to
-point elsewhere). This is the same resolve → recall → provenance flow the MCP tool runs, minus the agent.
+**What if it grabs the wrong session?** It tells you which one it used; if your hint is ambiguous it
+asks you to pick.
 
-## How answers are shaped
+**Is "cheaper" real?** Measured on real sessions, both ways. See `benchmark/`.
 
-- **Two confidences, never collapsed:** `source match` (did yoink pick the right session?) and
-  `answer confidence` (did that session actually reach a clear conclusion?).
-- **Compact provenance** by default:
-  `From auth-debugging · payments · 4m ago · source match: high · answer confidence: medium`
-- **Dead-end safety:** the prompt biases to the most-recent *ratified* conclusion and lists abandoned
-  paths as ruled-out — it never resurfaces a ruled-out guess as the answer.
-- **Safe failure:** if the session never concluded, yoink says so and lists what it *did* contain —
-  it never invents a confident answer.
-- **Source-match thresholds:** high → answer; medium → answer **plus a confirm-before-changes note**;
-  low → show the top 2–3 sessions to pick from (never a silent guess).
+---
 
-## Cost vs "just use native Claude"
-
-Recalling another session's conclusion *without* yoink means loading its **whole transcript into your
-live Opus context** — $5/MTok, it bloats your context, and past ~1M tokens it **overflows** (can't be
-done). yoink recalls in an isolated, cache-discounted **Haiku** subprocess and returns only ~300
-tokens. Measured on real sessions: **break-even ~5K tokens, then yoink wins fast** — 3.4× cheaper at
-81K tokens, 18× at 268K, and the *only* option past ~1M. Quality holds: Haiku recall passes the
-dead-end gate **10/10**. Full methodology + graph in [`benchmark/`](benchmark/).
-
-![cost](benchmark/cost.png)
-
-Recall defaults to Haiku; override with `YOINK_MODEL=claude-opus-4-8` for richer recalls on complex sessions.
-
-## Scope & limitations
-
-- **Claude → Claude, localhost only.** Cross-agent (Codex), remote sharing, and live in-memory
-  messaging are deferred — see [`.claude/plan.md`](.claude/plan.md) and the roadmap there.
-- Discovery reads your transcripts under `$CLAUDE_CONFIG_DIR/projects` (default `~/.claude/projects`)
-  **lightly and defensively** (titles + recency); that JSONL format is internal and may change between
-  Claude Code versions, so discovery degrades rather than crashes. Answering only ever goes through the
-  official `claude -p --resume` interface.
-- Default-deny across repos: yoink only scans the caller's project unless cross-project is opted in.
-
-## Development
-
-```bash
-uv sync                            # create the environment
-uv run pytest                      # fast, offline unit suite
-uv run python eval/run_eval.py          # the dead-end correctness gate (live model calls)
-YOINK_INTEGRATION=1 uv run pytest tests/test_integration.py   # live end-to-end
-```
-
-The **dead-end gate** (`eval/run_eval.py` + `eval/fixtures/`) is the make-or-break test: it proves the recall
-prompt extracts the *ratified* conclusion from messy transcripts (wrong-then-right, flip-flops, user
-corrections, no-conclusion, two-issues, …) rather than a dead end.
-
-## Layout
-
-```
-yoink/
-├── pyproject.toml     # package + console scripts (yoink / yoink-ask / yoink-install)
-├── src/yoink/         # the installed package
-│   ├── server.py      # FastMCP server (ask_recorded_session) + recall() + --health
-│   ├── prompts.py     # recall prompt + lenient/total answer parser (RecallAnswer)
-│   ├── resolver.py    # session discovery: topic+recency ranking, fork/self exclusion, cwd guard
-│   ├── answerer.py    # the verified claude -p --resume subprocess + typed errors + smoke gate
-│   ├── provenance.py  # pure formatting: two confidences, safe failure, thresholds
-│   ├── config.py      # runtime config (model, timeout)
-│   ├── cli.py         # `yoink-ask` terminal harness
-│   └── install.py     # `yoink-install` first-time setup
-├── eval/              # dead-end correctness gate: evalkit.py, run_eval.py, fixtures/
-├── benchmark/         # measured cost benchmark + graph
-├── tests/             # unit suite + gated live integration
-└── .claude/           # plan.md + build-spec.md
-```
-
-Built with [FastMCP](https://github.com/jlowin/fastmcp), managed with [uv](https://docs.astral.sh/uv/).
+<sub>MIT · `uv run pytest` to run the tests</sub>
