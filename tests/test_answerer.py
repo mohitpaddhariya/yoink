@@ -75,6 +75,12 @@ def test_build_command_disallows_mcp_tools():
     assert "--strict-mcp-config" in cmd
 
 
+def test_build_command_model_optional():
+    assert "--model" not in _build_command("s", "p")
+    cmd = _build_command("s", "p", model="claude-haiku-4-5")
+    assert cmd[cmd.index("--model") + 1] == "claude-haiku-4-5"
+
+
 # ---- run_answerer ---------------------------------------------------------
 
 def test_run_happy_path_returns_parsed_answer(run_stub, tmp_path):

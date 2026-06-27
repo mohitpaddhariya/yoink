@@ -40,8 +40,9 @@ async def test_high_match_calls_answerer_and_returns_formatted(monkeypatch):
     monkeypatch.setattr(broker.prompts, "build_recall_prompt", lambda q: "BUILT:" + q)
     calls = {}
 
-    def fake_run(session_id, cwd, recall_prompt):
+    def fake_run(session_id, cwd, recall_prompt, **kwargs):
         calls["args"] = (session_id, cwd, recall_prompt)
+        calls["model"] = kwargs.get("model")
         return SimpleNamespace(ok=True, answer=SimpleNamespace(), error=None)
 
     monkeypatch.setattr(broker.answerer, "run_answerer", fake_run)
@@ -55,6 +56,7 @@ async def test_high_match_calls_answerer_and_returns_formatted(monkeypatch):
     out = await _call(question="why?")
     assert out == "FORMATTED"
     assert calls["args"] == ("s1", "/p/payments", "BUILT:why?")
+    assert calls["model"]  # a recall model is passed (cheaper-by-default)
     assert got["sm"] == "high"
 
 

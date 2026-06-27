@@ -11,6 +11,7 @@ end-to-end gate (real ``--resume`` through ``answerer.run_answerer``) lives in
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -22,8 +23,12 @@ from prompts import parse_answer
 def _ask_model(prompt: str, timeout: float = 120) -> str:
     # Prompt goes via stdin: `--tools` is greedy, so a positional prompt after
     # `--tools ""` gets swallowed as a tool name. stdin sidesteps that entirely.
+    cmd = ["claude", "-p", "--output-format", "json", "--tools", ""]
+    model = os.environ.get("YOINK_MODEL")  # validate the gate on the production recall model
+    if model:
+        cmd += ["--model", model]
     proc = subprocess.run(
-        ["claude", "-p", "--output-format", "json", "--tools", ""],
+        cmd,
         input=prompt,
         capture_output=True,
         text=True,

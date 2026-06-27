@@ -75,6 +75,19 @@ point elsewhere). This is the same resolve → recall → provenance flow the MC
 - **Source-match thresholds:** high → answer; medium → answer **plus a confirm-before-changes note**;
   low → show the top 2–3 sessions to pick from (never a silent guess).
 
+## Cost vs "just use native Claude"
+
+Recalling another session's conclusion *without* yoink means loading its **whole transcript into your
+live Opus context** — $5/MTok, it bloats your context, and past ~1M tokens it **overflows** (can't be
+done). yoink recalls in an isolated, cache-discounted **Haiku** subprocess and returns only ~300
+tokens. Measured on real sessions: **break-even ~5K tokens, then yoink wins fast** — 3.4× cheaper at
+81K tokens, 18× at 268K, and the *only* option past ~1M. Quality holds: Haiku recall passes the
+dead-end gate **10/10**. Full methodology + graph in [`benchmark/`](benchmark/).
+
+![cost](benchmark/cost.png)
+
+Recall defaults to Haiku; override with `YOINK_MODEL=claude-opus-4-8` for richer recalls on complex sessions.
+
 ## Scope & limitations
 
 - **Claude → Claude, localhost only.** Cross-agent (Codex), remote sharing, and live in-memory
