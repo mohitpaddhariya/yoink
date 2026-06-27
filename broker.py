@@ -15,15 +15,12 @@ import sys
 from fastmcp import FastMCP
 
 import answerer
+import config
 import prompts
 import provenance
 import resolver
 
 mcp = FastMCP("yoink")
-
-# Recall is extraction, not reasoning — a cheaper model is far cheaper and still passes
-# the dead-end gate 10/10. Override with YOINK_MODEL (e.g. claude-opus-4-8 for richer recalls).
-DEFAULT_RECALL_MODEL = "claude-haiku-4-5"
 
 
 def recall(
@@ -48,8 +45,11 @@ def recall(
             return provenance.format_disambiguation(resolution.candidates[:3])
         best = resolution.candidates[0]
         recall_prompt = prompts.build_recall_prompt(question)
-        model = os.environ.get("YOINK_MODEL") or DEFAULT_RECALL_MODEL
-        result = answerer.run_answerer(best.session_id, best.target_project_cwd, recall_prompt, model=model)
+        cfg = config.load_config()
+        result = answerer.run_answerer(
+            best.session_id, best.target_project_cwd, recall_prompt,
+            model=cfg.model, timeout=cfg.timeout,
+        )
         if not result.ok:
             message = result.error.message if result.error else "unknown error"
             excerpt = getattr(result.error, "stderr_excerpt", None)

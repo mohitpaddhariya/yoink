@@ -41,13 +41,24 @@ asserts the resumed process loaded **zero** tools).
 
 ## Install
 
+One command (full guide in [`INSTALLING.md`](INSTALLING.md)):
+
+```bash
+uv sync && uv run python install.py
+```
+
+The installer picks your **recall model** (saved to `~/.config/yoink/config.json`), registers the
+MCP server, **patches your CLAUDE.md so Claude uses yoink instead of native transcript search**, and
+runs a health check. Or set it up by hand:
+
 ```bash
 uv sync
-# --scope user makes yoink available in every Claude session (so you can ask one
-# session about another); drop it for this-project-only.
 claude mcp add --scope user yoink -- uv run --directory "$(pwd)" python broker.py
 uv run python broker.py --health     # verify the recall-only flags work end-to-end
 ```
+
+Configure the recall model and timeout in `~/.config/yoink/config.json` (or `YOINK_MODEL` /
+`YOINK_TIMEOUT`); defaults to cheap Haiku recall.
 
 Then in any Claude session, just ask in natural language:
 
