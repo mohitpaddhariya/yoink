@@ -1,0 +1,16 @@
+[project]
+name = "yoink"
+version = "0.1.0"
+description = "Grab focused context from another Claude session, without copy-paste."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastmcp>=3.4.2",
+]
+
+[dependency-groups]
+dev = ["pytest>=8", "pytest-asyncio>=0.24"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

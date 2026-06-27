@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# uv / virtualenv
+.venv/
+
+# OS / editor
+.DS_Store
+
+# secrets
+.env
+
+# Claude Code (local, per-machine)
+.claude/settings.local.json
