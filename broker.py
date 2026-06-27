@@ -47,6 +47,9 @@ def recall(
         result = answerer.run_answerer(best.session_id, best.target_project_cwd, recall_prompt)
         if not result.ok:
             message = result.error.message if result.error else "unknown error"
+            excerpt = getattr(result.error, "stderr_excerpt", None)
+            if excerpt:
+                message = f"{message} — {excerpt}"
             return provenance.format_answerer_error(best, message)
         return provenance.format_provenance(best, resolution.source_match, result.answer)
     except Exception as exc:  # noqa: BLE001 - never raise to the caller
@@ -54,7 +57,7 @@ def recall(
 
 
 @mcp.tool()
-async def ask_recorded_session(peer_hint: str, question: str, all_projects: bool = False) -> str:
+async def ask_recorded_session(peer_hint: str, question: str) -> str:
     """Grab a focused answer from another Claude session's RECORDED work.
 
     Use this when the user wants what a *different or earlier* Claude session already
@@ -64,13 +67,11 @@ async def ask_recorded_session(peer_hint: str, question: str, all_projects: bool
 
     It reads the peer's recorded transcript read-only (resumed in a forked, tool-disabled
     process) — it never interrupts a live session, and answers reflect the peer's last
-    saved turn.
+    saved turn. It searches across all of your recorded sessions and ranks them by topic.
 
     Args:
         peer_hint: a natural description of the target session ("the auth debugging one").
         question: what to ask that session.
-        all_projects: by default only the caller's own project is searched (privacy);
-            set true when the target session is in a different repo ("across all my sessions").
 
     Returns a focused answer with provenance, a short disambiguation list, or a no-match
     message.
@@ -81,7 +82,9 @@ async def ask_recorded_session(peer_hint: str, question: str, all_projects: bool
         question,
         caller_cwd=os.getcwd(),
         caller_session_id=os.environ.get("CLAUDE_SESSION_ID"),
-        cross_project=all_projects,
+        # An MCP server can't know which repo the asking session is in, so search across
+        # all the user's own sessions (single-user localhost; per-repo scoping returns with sharing).
+        cross_project=True,
     )
 
 

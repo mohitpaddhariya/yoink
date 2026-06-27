@@ -121,7 +121,12 @@ def run_answerer(
 
     cmd = _build_command(session_id, recall_prompt, claude_bin=claude_bin)
     try:
-        proc = subprocess.run(cmd, cwd=target_project_cwd, capture_output=True, text=True, timeout=timeout)
+        # stdin=DEVNULL: when the broker runs as an MCP stdio server, its stdin IS the
+        # protocol channel — the resumed claude must never inherit/read it.
+        proc = subprocess.run(
+            cmd, cwd=target_project_cwd, stdin=subprocess.DEVNULL,
+            capture_output=True, text=True, timeout=timeout,
+        )
     except FileNotFoundError:
         return _fail(ErrorKind.BINARY_NOT_FOUND, f"claude binary not found: {claude_bin}")
     except subprocess.TimeoutExpired as exc:
@@ -168,7 +173,10 @@ def smoke_check(*, session_id=None, target_project_cwd=None, claude_bin="claude"
     cmd = _build_command(session_id, SMOKE_PROMPT, claude_bin=claude_bin, output_format="stream-json", verbose=True)
     cwd = target_project_cwd if (target_project_cwd and os.path.isdir(target_project_cwd)) else None
     try:
-        proc = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+        proc = subprocess.run(
+            cmd, cwd=cwd, stdin=subprocess.DEVNULL,
+            capture_output=True, text=True, timeout=timeout,
+        )
     except FileNotFoundError:
         return SmokeResult(False, False, False, f"claude binary not found: {claude_bin}",
                            AnswererError(ErrorKind.BINARY_NOT_FOUND, claude_bin))
