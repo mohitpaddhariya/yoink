@@ -20,6 +20,7 @@ dist/
 
 # Claude Code (local, per-machine) — settings, hooks, internal planning docs; never publish
 .claude/
+/CLAUDE.md
 
 # benchmark run artifacts (machine-specific session ids + regenerable; numbers live in README + committed PNGs)
 benchmark/results/
