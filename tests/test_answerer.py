@@ -69,6 +69,12 @@ def test_build_command_omits_resume_without_session():
     assert "--resume" not in _build_command(None, "p")
 
 
+def test_build_command_disallows_mcp_tools():
+    cmd = _build_command("s", "p")
+    assert cmd[cmd.index("--disallowedTools") + 1] == "mcp__*"
+    assert "--strict-mcp-config" in cmd
+
+
 # ---- run_answerer ---------------------------------------------------------
 
 def test_run_happy_path_returns_parsed_answer(run_stub, tmp_path):
@@ -183,6 +189,13 @@ def test_smoke_detects_tools_present(run_stub):
 
 def test_smoke_result_not_ok(run_stub):
     run_stub(returncode=0, stdout=_stream(tools=[], result="OK, I will help with that"))
+    res = smoke_check()
+    assert res.returned_ok is False
+    assert res.ok is False
+
+
+def test_smoke_null_result_does_not_crash(run_stub):
+    run_stub(returncode=0, stdout=_stream(tools=[], result=None))  # error subtype -> null result
     res = smoke_check()
     assert res.returned_ok is False
     assert res.ok is False
