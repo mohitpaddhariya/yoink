@@ -13,10 +13,11 @@ def test_write_transcript_is_parseable_and_placed(projects_root):
         projects_root,
         "s1",
         "/Users/m/yoink",
-        title="auth debugging",
         turns=[("user", "why failing"), ("assistant", "it is token refresh")],
+        titles=[("ai", "auth debugging")],
     )
     assert path.parent.name == "-Users-m-yoink"
     records = [json.loads(line) for line in path.read_text().splitlines()]
-    assert records[0]["type"] == "ai-title"
-    assert records[-1]["message"]["content"][0]["text"] == "it is token refresh"
+    assert records[0]["cwd"] == "/Users/m/yoink"
+    assert records[-1]["type"] == "ai-title"
+    assert records[-1]["aiTitle"] == "auth debugging"
