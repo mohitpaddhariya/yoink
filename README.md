@@ -92,7 +92,7 @@ uv run yoink-ask --all "staging" "how do I access the server?"
   the session you have running — the answer is from its last saved moment.
 - **It shows its work.** Which session, how confident. Trust it, or correct it.
 - **If it never reached a conclusion, it's built to say so** rather than invent one — and to flag a
-  *tentative* hypothesis as tentative (measured abstention precision 1.00, recall 0.89).
+  *tentative* hypothesis as tentative (measured abstention precision 1.00, recall 0.78).
 
 ## FAQ
 
