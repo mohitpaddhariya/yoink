@@ -10,6 +10,7 @@
   ],
   "expect": {
     "conclusion_contains": ["index"],
+    "conclusion_excludes": ["file handle"],
     "ruled_out_contains": [],
     "answer_confidence_in": ["high", "medium"],
     "no_conclusion": false

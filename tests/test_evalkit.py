@@ -1,7 +1,7 @@
 import json
 
 from evalkit import Fixture, build_eval_prompt, grade, load_fixtures
-from prompts import AnswerResult
+from prompts import RecallAnswer
 
 
 def _fixture(**overrides) -> Fixture:
@@ -35,7 +35,7 @@ def test_load_fixtures_from_dir(tmp_path):
 
 def test_real_fixtures_load_and_are_well_formed():
     fixtures = load_fixtures()
-    assert fixtures, "expected at least one committed fixture"
+    assert len(fixtures) >= 10, "expected the full dead-end suite"
     for fixture in fixtures:
         assert fixture.question
         assert fixture.turns
@@ -58,34 +58,43 @@ def test_grade_pass():
             "answer_confidence_in": ["high"],
         }
     )
-    result = AnswerResult(
+    result = RecallAnswer(
         answer="it is token refresh", answer_confidence="high", ruled_out=["cache"]
     )
-    passed, reasons = grade(fixture, result)
-    assert passed
-    assert reasons == []
+    assert grade(fixture, result) == (True, [])
 
 
 def test_grade_missing_conclusion():
     fixture = _fixture(expect={"conclusion_contains": ["token refresh"]})
-    passed, reasons = grade(fixture, AnswerResult(answer="it is the cache"))
+    passed, reasons = grade(fixture, RecallAnswer(answer="it is the cache"))
     assert not passed
     assert any("conclusion" in reason for reason in reasons)
 
 
-def test_grade_ruled_out_leaked_into_answer():
+def test_grade_conclusion_excludes():
+    fixture = _fixture(
+        expect={"conclusion_contains": ["index"], "conclusion_excludes": ["file handle"]}
+    )
+    result = RecallAnswer(answer="add an index; also the file handle leak", answer_confidence="high")
+    passed, reasons = grade(fixture, result)
+    assert not passed
+    assert any("should not contain" in reason for reason in reasons)
+
+
+def test_grade_naming_a_ruled_out_dead_end_is_allowed():
+    # An answer may correctly *name* a dead end as ruled out — must not fail grading.
     fixture = _fixture(
         expect={"conclusion_contains": ["token refresh"], "ruled_out_contains": ["cache"]}
     )
-    result = AnswerResult(
-        answer="token refresh, though maybe cache", answer_confidence="high", ruled_out=["cache"]
+    result = RecallAnswer(
+        answer="it is token refresh (the cache was ruled out)",
+        answer_confidence="high",
+        ruled_out=["cache"],
     )
-    passed, reasons = grade(fixture, result)
-    assert not passed
-    assert any("leaked" in reason for reason in reasons)
+    assert grade(fixture, result)[0]
 
 
 def test_grade_no_conclusion_expected():
     fixture = _fixture(expect={"no_conclusion": True})
-    assert grade(fixture, AnswerResult(answer="still open", no_conclusion=True))[0]
-    assert not grade(fixture, AnswerResult(answer="it is X", no_conclusion=False))[0]
+    assert grade(fixture, RecallAnswer(answer="still open", no_conclusion=True))[0]
+    assert not grade(fixture, RecallAnswer(answer="it is X", no_conclusion=False))[0]

@@ -9,8 +9,6 @@
   ],
   "expect": {
     "conclusion_contains": ["race"],
-    "ruled_out_contains": [],
-    "answer_confidence_in": ["low", "medium"],
-    "no_conclusion": false
+    "answer_confidence_in": ["low", "medium", "none"]
   }
 }

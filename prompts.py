@@ -2,18 +2,26 @@
 
 yoink resumes another session's transcript read-only and asks it ONE question. The
 prompt forces a recall-only posture and a small JSON contract so the reply can be
-formatted with provenance. Parsing is lenient: a resumed model may wrap the JSON in
-prose or code fences, so we try several extractions and, as a last resort, keep the
-raw reply as a low-confidence answer rather than failing.
+formatted with provenance. Parsing is lenient and *total* (never raises): a resumed
+model may wrap the JSON in prose or fences, use Python-style quotes, or ignore the
+contract entirely; we extract what we can and otherwise keep the raw reply as a
+low-confidence answer.
 """
 from __future__ import annotations
 
+import ast
 import json
-import re
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
-CONFIDENCE = ("high", "medium", "low", "none")
+CONFIDENCE_LEVELS: tuple[str, ...] = ("high", "medium", "low", "none")
+
+_SYNONYMS = {
+    "confident": "high", "certain": "high", "sure": "high",
+    "likely": "medium", "probable": "medium",
+    "possible": "low", "tentative": "low", "unsure": "low", "uncertain": "low",
+    "unknown": "none", "unclear": "none",
+}
 
 _PROMPT = """\
 You are being asked ONE question by a peer tool, about work YOU already did earlier in THIS session.
@@ -21,7 +29,7 @@ You are being asked ONE question by a peer tool, about work YOU already did earl
 Rules:
 - Answer ONLY from your existing conversation context. Do NOT re-investigate, do NOT run tools, do NOT read files.
 - If the session explored dead ends ("tried X, ruled it out"), report the MOST RECENT RATIFIED conclusion, not the abandoned ones.
-- List the ruled-out paths AS ruled out — neither hide them nor present them as the answer.
+- List the ruled-out paths AS ruled out -- neither hide them nor present them as the answer.
 - If the session never reached a firm conclusion, set no_conclusion=true and do NOT invent one.
 
 Reply with ONLY a JSON object of this shape, nothing else:
@@ -37,14 +45,18 @@ Question: %(question)s
 """
 
 
-@dataclass
-class AnswerResult:
-    """A resumed session's answer, normalised into yoink's contract."""
+@dataclass(frozen=True)
+class RecallAnswer:
+    """A resumed session's answer, normalised into yoink's contract.
+
+    Invariants (always hold after :func:`parse_answer`): ``no_conclusion`` iff
+    ``answer_confidence == "none"``; a blank answer forces both.
+    """
 
     answer: str
     answer_confidence: str = "none"
     ruled_out: list[str] = field(default_factory=list)
-    cited_turn: str = ""
+    cited_turn: str | None = None
     no_conclusion: bool = False
 
 
@@ -53,12 +65,15 @@ def build_recall_prompt(question: str) -> str:
     return _PROMPT % {"question": question.strip()}
 
 
+def _normalize_confidence(value: object) -> str:
+    text = str(value).strip().lower()
+    if text in CONFIDENCE_LEVELS:
+        return text
+    return _SYNONYMS.get(text, "low")
+
+
 def _json_candidates(text: str) -> Iterator[str]:
-    text = text.strip()
     yield text
-    fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
-    if fenced:
-        yield fenced.group(1)
     start = text.find("{")
     while start != -1:
         depth = 0
@@ -75,33 +90,50 @@ def _json_candidates(text: str) -> Iterator[str]:
 
 def _extract_obj(text: str) -> dict | None:
     for candidate in _json_candidates(text):
-        try:
-            obj = json.loads(candidate)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(obj, dict):
-            return obj
+        for loader in (json.loads, ast.literal_eval):
+            try:
+                obj = loader(candidate)
+            except (ValueError, SyntaxError):
+                continue
+            if isinstance(obj, dict):
+                return obj
     return None
 
 
-def parse_answer(result_text: str) -> AnswerResult:
-    """Leniently parse a resumed session's reply into an :class:`AnswerResult`."""
+def _reconcile(
+    answer: str,
+    confidence: str,
+    ruled_out: list[str],
+    cited_turn: str | None,
+    no_conclusion: bool,
+) -> RecallAnswer:
+    answer = answer.strip()
+    confidence = _normalize_confidence(confidence)
+    if not answer:
+        no_conclusion = True
+    if no_conclusion:
+        confidence = "none"
+    elif confidence == "none":
+        no_conclusion = True
+    return RecallAnswer(answer, confidence, ruled_out, cited_turn or None, no_conclusion)
+
+
+def parse_answer(result_text: str) -> RecallAnswer:
+    """Leniently and totally parse a resumed session's reply (never raises)."""
     text = (result_text or "").strip()
     obj = _extract_obj(text)
     if obj is None:
-        # Model ignored the contract — keep the reply, but don't trust it.
-        return AnswerResult(answer=text, answer_confidence="low")
+        # Model ignored the contract -- keep the reply, but don't trust it.
+        return _reconcile(text, "low", [], None, False)
 
     ruled = obj.get("ruled_out") or []
     if not isinstance(ruled, list):
         ruled = [ruled]
-    confidence = obj.get("answer_confidence")
-    if confidence not in CONFIDENCE:
-        confidence = "low"
-    return AnswerResult(
-        answer=str(obj.get("answer", "")).strip(),
-        answer_confidence=confidence,
-        ruled_out=[str(r) for r in ruled],
-        cited_turn=str(obj.get("cited_turn", "")),
-        no_conclusion=bool(obj.get("no_conclusion", False)),
+    cited = obj.get("cited_turn")
+    return _reconcile(
+        str(obj.get("answer", "")),
+        obj.get("answer_confidence", "none"),
+        [str(r) for r in ruled],
+        str(cited) if cited else None,
+        bool(obj.get("no_conclusion", False)),
     )

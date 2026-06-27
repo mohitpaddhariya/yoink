@@ -24,17 +24,25 @@ def test_parse_json_wrapped_in_prose_and_fences():
     result = parse_answer(raw)
     assert result.answer == "it is X"
     assert result.answer_confidence == "medium"
+    assert result.cited_turn is None
+
+
+def test_parse_python_dict_single_quotes():
+    result = parse_answer("{'answer': 'it is Y', 'answer_confidence': 'high'}")
+    assert result.answer == "it is Y"
+    assert result.answer_confidence == "high"
 
 
 def test_parse_no_json_falls_back_to_low_confidence():
     result = parse_answer("I think it was probably the cache layer.")
     assert result.answer.startswith("I think")
     assert result.answer_confidence == "low"
+    assert result.no_conclusion is False
 
 
-def test_parse_invalid_confidence_coerced_to_low():
-    result = parse_answer('{"answer": "x", "answer_confidence": "very-sure"}')
-    assert result.answer_confidence == "low"
+def test_parse_confidence_synonym_and_case():
+    assert parse_answer('{"answer": "x", "answer_confidence": "Likely"}').answer_confidence == "medium"
+    assert parse_answer('{"answer": "x", "answer_confidence": "very-sure"}').answer_confidence == "low"
 
 
 def test_parse_ruled_out_non_list_coerced():
@@ -42,8 +50,20 @@ def test_parse_ruled_out_non_list_coerced():
     assert result.ruled_out == ["cache"]
 
 
-def test_parse_no_conclusion_true():
-    result = parse_answer('{"answer": "still open", "answer_confidence": "none", "no_conclusion": true}')
+def test_parse_no_conclusion_implies_none_confidence():
+    result = parse_answer('{"answer": "still open", "answer_confidence": "high", "no_conclusion": true}')
+    assert result.no_conclusion is True
+    assert result.answer_confidence == "none"
+
+
+def test_parse_none_confidence_implies_no_conclusion():
+    result = parse_answer('{"answer": "x", "answer_confidence": "none"}')
+    assert result.no_conclusion is True
+
+
+def test_parse_blank_answer_forces_no_conclusion():
+    result = parse_answer('{"answer": "   ", "answer_confidence": "high"}')
+    assert result.answer == ""
     assert result.no_conclusion is True
     assert result.answer_confidence == "none"
 
@@ -51,4 +71,5 @@ def test_parse_no_conclusion_true():
 def test_parse_empty_reply():
     result = parse_answer("")
     assert result.answer == ""
-    assert result.answer_confidence == "low"
+    assert result.answer_confidence == "none"
+    assert result.no_conclusion is True

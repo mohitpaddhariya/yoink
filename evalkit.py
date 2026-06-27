@@ -11,7 +11,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from prompts import AnswerResult, build_recall_prompt
+from prompts import RecallAnswer, build_recall_prompt
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -59,7 +59,7 @@ def build_eval_prompt(fixture: Fixture) -> str:
     )
 
 
-def grade(fixture: Fixture, result: AnswerResult) -> tuple[bool, list[str]]:
+def grade(fixture: Fixture, result: RecallAnswer) -> tuple[bool, list[str]]:
     """Grade a parsed answer against the fixture's expectations.
 
     Returns ``(passed, reasons)`` where ``reasons`` lists every failed expectation.
@@ -76,13 +76,16 @@ def grade(fixture: Fixture, result: AnswerResult) -> tuple[bool, list[str]]:
     for keyword in expect.get("conclusion_contains", []):
         if keyword.lower() not in answer:
             reasons.append(f"answer missing conclusion keyword: {keyword!r}")
+    # A curated set of things the *conclusion* must not be (a different issue, a dead
+    # end). Distinct from ruled_out — naming a dead end in ruled_out is correct.
+    for keyword in expect.get("conclusion_excludes", []):
+        if keyword.lower() in answer:
+            reasons.append(f"answer should not contain: {keyword!r}")
 
     ruled_blob = " ".join(result.ruled_out).lower()
     for keyword in expect.get("ruled_out_contains", []):
         if keyword.lower() not in ruled_blob:
             reasons.append(f"ruled_out missing: {keyword!r}")
-        if keyword.lower() in answer:
-            reasons.append(f"ruled-out item {keyword!r} leaked into the answer")
 
     allowed = expect.get("answer_confidence_in")
     if allowed and result.answer_confidence not in allowed:
