@@ -1,0 +1,17 @@
+{
+  "id": "user-correction-at-end",
+  "scenario": "Assistant blamed the load balancer; user corrected to connection pool size.",
+  "question": "What is the cause of the dropped requests?",
+  "turns": [
+    ["user", "we are dropping ~2% of requests under load"],
+    ["assistant", "I believe the load balancer is misconfigured and closing idle connections."],
+    ["user", "infra checked the LB -- it's fine. The drops correlate with our app's connection pool maxing out."],
+    ["assistant", "Understood -- then the cause is the connection pool size: it's capped too low, so requests beyond the cap are rejected under load."]
+  ],
+  "expect": {
+    "conclusion_contains": ["connection pool"],
+    "ruled_out_contains": ["load balancer"],
+    "answer_confidence_in": ["high", "medium"],
+    "no_conclusion": false
+  }
+}

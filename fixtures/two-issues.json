@@ -1,0 +1,18 @@
+{
+  "id": "two-issues",
+  "scenario": "One session debugged both a memory leak and a slow query; ask only about the query.",
+  "question": "What did you find was making the orders report slow?",
+  "turns": [
+    ["user", "two things: the orders report is slow, and the importer leaks memory"],
+    ["assistant", "Memory leak first: the importer never closes its file handles, so descriptors pile up. Fix is a context manager."],
+    ["assistant", "Orders report: the query does a full table scan because there's no index on orders.created_at, which the report filters on. Adding that index makes it instant."],
+    ["user", "great, two fixes"]
+  ],
+  "expect": {
+    "conclusion_contains": ["index"],
+    "conclusion_excludes": ["file handle"],
+    "ruled_out_contains": [],
+    "answer_confidence_in": ["high", "medium"],
+    "no_conclusion": false
+  }
+}
