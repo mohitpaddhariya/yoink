@@ -92,7 +92,7 @@ Search can find words. It cannot tell whether a word was the final answer or a f
 Example:
 
 ```text
-Tried SSH. the firewall blocks it. Use the VPN instead.
+Tried direct SSH. The firewall blocks it. Use the VPN instead.
 ```
 
 A plain search for “access server” may show `SSH`, even though SSH was ruled out. Yoink should return:

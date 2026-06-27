@@ -24,14 +24,14 @@ and the other session answers — with the conclusion it actually landed on.
 
 ## The trick: it knows what a session *decided*, not just what it *said*
 
-Ask about a real session:
+Ask about a past session:
 
-> **what did my staging session conclude about how to access the server?**
+> **what did my deploy session conclude about how to reach the staging server?**
 
 ```
 From staging-deploy · high confidence
-Answer:    It's on EC2, dashboard at staging.example.internal, admin access is the VPN only.
-Ruled out: SSH (the firewall blocks it) → use the VPN.  Kafka (there isn't any) → it's Redis.
+Answer:    It's on a private VM; dashboard at staging.example.internal, admin access is over the VPN only.
+Ruled out: direct SSH (the firewall blocks it) → use the VPN.  Kafka (there's none) → it's Redis.
 ```
 
 That session *tried* SSH and *tried* Kafka, hit walls, and moved on. yoink gives you what it **settled
@@ -83,7 +83,7 @@ Just ask, in any Claude session:
 Or from a terminal:
 
 ```bash
-uv run yoink-ask --all "staging" "how do I access the server?"
+uv run yoink-ask --all "staging deploy" "how do I reach the staging server?"
 ```
 
 ## Good to know

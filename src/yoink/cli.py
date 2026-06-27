@@ -4,8 +4,8 @@ Usage:
     uv run python ask.py [--cwd DIR] [--all] "<peer hint>" "<question>"
 
 Examples:
-    uv run python ask.py --all "staging selfhost" "what is the deployment status?"
-    uv run python ask.py --cwd ~/work/api "auth api endpoint" "which endpoint did you find?"
+    uv run python ask.py --all "staging deploy" "what is the deployment status?"
+    uv run python ask.py --cwd ~/work/api "auth endpoint" "which endpoint did you find?"
 
 ``--all`` searches across every project; otherwise only ``--cwd``'s project is scanned
 (the same default-deny privacy bound the MCP tool uses).
