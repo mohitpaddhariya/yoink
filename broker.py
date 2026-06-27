@@ -76,12 +76,19 @@ async def ask_recorded_session(peer_hint: str, question: str) -> str:
     Returns a focused answer with provenance, a short disambiguation list, or a no-match
     message.
     """
+    try:
+        caller_cwd = os.getcwd()
+    except OSError:
+        caller_cwd = ""
+    # Claude Code exports CLAUDE_CODE_SESSION_ID (not CLAUDE_SESSION_ID); needed so the
+    # resolver excludes the caller's own live session from being returned as a "peer".
+    caller_session_id = os.environ.get("CLAUDE_CODE_SESSION_ID") or os.environ.get("CLAUDE_SESSION_ID")
     return await asyncio.to_thread(
         recall,
         peer_hint,
         question,
-        caller_cwd=os.getcwd(),
-        caller_session_id=os.environ.get("CLAUDE_SESSION_ID"),
+        caller_cwd=caller_cwd,
+        caller_session_id=caller_session_id,
         # An MCP server can't know which repo the asking session is in, so search across
         # all the user's own sessions (single-user localhost; per-repo scoping returns with sharing).
         cross_project=True,

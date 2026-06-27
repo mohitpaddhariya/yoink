@@ -184,3 +184,27 @@ def test_default_projects_root_respects_config_dir(monkeypatch):
     assert default_projects_root() == Path("/tmp/cfg/projects")
     monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
     assert default_projects_root().as_posix().endswith("/.claude/projects")
+
+
+def test_huge_file_bounded_read_finds_tail_title(projects_root, repo):
+    import json
+
+    import resolver as R
+
+    slug_dir = projects_root / cwd_to_slug(repo)
+    slug_dir.mkdir(parents=True, exist_ok=True)
+    path = slug_dir / "big.jsonl"
+
+    lines = [json.dumps({"type": "user", "cwd": repo, "sessionId": "big",
+                         "message": {"role": "user", "content": [{"type": "text", "text": "start"}]}})]
+    pad = json.dumps({"type": "user", "cwd": repo,
+                      "message": {"role": "user", "content": [{"type": "text", "text": "x" * 300}]}})
+    while sum(len(line) + 1 for line in lines) < R.HEAD_BYTES + R.TAIL_BYTES + 5000:
+        lines.append(pad)
+    lines.append(json.dumps({"type": "ai-title", "aiTitle": "deep tail auth title", "sessionId": "big"}))
+    path.write_text("\n".join(lines) + "\n")
+    assert path.stat().st_size > R.HEAD_BYTES + R.TAIL_BYTES  # genuinely exceeds the bounded window
+
+    res = resolve("deep tail auth", None, repo, projects_root=projects_root)
+    assert res.candidates and res.candidates[0].session_id == "big"
+    assert "deep tail" in res.candidates[0].title  # title recovered from the tail read

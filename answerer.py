@@ -125,7 +125,7 @@ def run_answerer(
         # protocol channel — the resumed claude must never inherit/read it.
         proc = subprocess.run(
             cmd, cwd=target_project_cwd, stdin=subprocess.DEVNULL,
-            capture_output=True, text=True, timeout=timeout,
+            capture_output=True, text=True, errors="replace", timeout=timeout,
         )
     except FileNotFoundError:
         return _fail(ErrorKind.BINARY_NOT_FOUND, f"claude binary not found: {claude_bin}")
@@ -175,7 +175,7 @@ def smoke_check(*, session_id=None, target_project_cwd=None, claude_bin="claude"
     try:
         proc = subprocess.run(
             cmd, cwd=cwd, stdin=subprocess.DEVNULL,
-            capture_output=True, text=True, timeout=timeout,
+            capture_output=True, text=True, errors="replace", timeout=timeout,
         )
     except FileNotFoundError:
         return SmokeResult(False, False, False, f"claude binary not found: {claude_bin}",
@@ -197,7 +197,7 @@ def smoke_check(*, session_id=None, target_project_cwd=None, claude_bin="claude"
         if obj.get("type") == "system" and "tools" in obj and tools is None:
             tools = obj.get("tools")
         elif obj.get("type") == "result":
-            result_text = obj.get("result", "")
+            result_text = obj.get("result") or ""  # tolerate a null result (error subtypes)
 
     tools_empty = tools == []
     returned_ok = result_text.strip() == "OK"

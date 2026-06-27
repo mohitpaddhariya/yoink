@@ -1,11 +1,12 @@
-"""Make-or-break gate: run the dead-end fixtures through a real Claude and grade.
+"""Dead-end PROMPT-discrimination signal: run the fixtures through a real Claude and grade.
 
 Usage:  uv run python run_eval.py
 
-Calls ``claude -p`` per fixture (needs the CLI + auth), grades each answer, prints a
-report, and exits non-zero if any fixture fails. This is the eval the plan gates
-Phase 1 on. It exercises the recall *prompt* (transcript inlined as context), which is
-distinct from the production ``--resume`` path wrapped by ``answerer.py``.
+Calls ``claude -p`` per fixture with the transcript inlined as context, grading whether
+the recall *prompt* extracts the ratified conclusion rather than the abandoned dead-ends.
+This is a fast iteration signal on the prompt — NOT the production path. The canonical
+end-to-end gate (real ``--resume`` through ``answerer.run_answerer``) lives in
+``tests/test_integration.py`` (run with ``YOINK_INTEGRATION=1``).
 """
 from __future__ import annotations
 
