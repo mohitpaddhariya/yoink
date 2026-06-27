@@ -1,0 +1,16 @@
+{
+  "id": "uncertain-conclusion",
+  "scenario": "A leading hypothesis that was explicitly never confirmed.",
+  "question": "Why is the worker occasionally hanging?",
+  "turns": [
+    ["user", "the background worker hangs maybe once a day"],
+    ["assistant", "It looks like it could be a race condition between the job lock release and the next poll, but I haven't been able to reproduce it reliably."],
+    ["assistant", "I added logging to catch it next time. For now this is a suspected race condition, not confirmed."]
+  ],
+  "expect": {
+    "conclusion_contains": ["race"],
+    "ruled_out_contains": [],
+    "answer_confidence_in": ["low", "medium"],
+    "no_conclusion": false
+  }
+}

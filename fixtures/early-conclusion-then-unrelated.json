@@ -1,0 +1,18 @@
+{
+  "id": "early-conclusion-then-unrelated",
+  "scenario": "Root cause found early, then lots of unrelated refactoring; recall the early conclusion.",
+  "question": "What did we decide was the cause of the slow dashboard?",
+  "turns": [
+    ["user", "the analytics dashboard takes 8s to load"],
+    ["assistant", "Found it quickly: the dashboard issues 40 separate queries; the slow one is the events aggregation, missing an index on events.ts. Add the index and batch the rest."],
+    ["user", "cool, noted. while you're here, can you rename these variables and tidy the imports?"],
+    ["assistant", "Done -- renamed the variables, tidied the imports, and reformatted the module."],
+    ["user", "thanks"]
+  ],
+  "expect": {
+    "conclusion_contains": ["index"],
+    "ruled_out_contains": [],
+    "answer_confidence_in": ["high", "medium"],
+    "no_conclusion": false
+  }
+}

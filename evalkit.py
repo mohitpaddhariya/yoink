@@ -1,0 +1,92 @@
+"""Load dead-end fixtures, build eval prompts, and grade model answers.
+
+The dead-end suite is yoink's make-or-break gate: can the recall prompt pull the
+*current ratified* conclusion out of a messy transcript without surfacing abandoned
+dead ends? Grading here is deterministic and offline; the real model call lives in
+``run_eval.py`` so the unit suite stays fast.
+"""
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from pathlib import Path
+
+from prompts import AnswerResult, build_recall_prompt
+
+FIXTURES_DIR = Path(__file__).parent / "fixtures"
+
+
+@dataclass
+class Fixture:
+    id: str
+    scenario: str
+    question: str
+    turns: list[tuple[str, str]]
+    expect: dict
+
+
+def load_fixtures(directory: Path = FIXTURES_DIR) -> list[Fixture]:
+    """Load every ``*.json`` fixture from ``directory``, sorted by filename."""
+    fixtures = []
+    for path in sorted(directory.glob("*.json")):
+        data = json.loads(path.read_text())
+        fixtures.append(
+            Fixture(
+                id=data.get("id", path.stem),
+                scenario=data.get("scenario", ""),
+                question=data["question"],
+                turns=[tuple(turn) for turn in data["turns"]],
+                expect=data.get("expect", {}),
+            )
+        )
+    return fixtures
+
+
+def build_eval_prompt(fixture: Fixture) -> str:
+    """Inline the synthetic transcript as context, then ask the recall question.
+
+    In production the transcript is the resumed session's own context (via
+    ``--resume``); here we inline it so the eval exercises the prompt's dead-end
+    discrimination without needing a real session on disk.
+    """
+    transcript = "\n".join(f"[{role}] {text}" for role, text in fixture.turns)
+    return (
+        "Below is a transcript of an earlier debugging session you ran. Treat it as"
+        " your own prior context.\n\n<transcript>\n"
+        + transcript
+        + "\n</transcript>\n\n"
+        + build_recall_prompt(fixture.question)
+    )
+
+
+def grade(fixture: Fixture, result: AnswerResult) -> tuple[bool, list[str]]:
+    """Grade a parsed answer against the fixture's expectations.
+
+    Returns ``(passed, reasons)`` where ``reasons`` lists every failed expectation.
+    """
+    expect = fixture.expect
+    reasons: list[str] = []
+
+    if expect.get("no_conclusion"):
+        if not result.no_conclusion:
+            reasons.append("expected no_conclusion=true but a conclusion was given")
+        return (not reasons, reasons)
+
+    answer = result.answer.lower()
+    for keyword in expect.get("conclusion_contains", []):
+        if keyword.lower() not in answer:
+            reasons.append(f"answer missing conclusion keyword: {keyword!r}")
+
+    ruled_blob = " ".join(result.ruled_out).lower()
+    for keyword in expect.get("ruled_out_contains", []):
+        if keyword.lower() not in ruled_blob:
+            reasons.append(f"ruled_out missing: {keyword!r}")
+        if keyword.lower() in answer:
+            reasons.append(f"ruled-out item {keyword!r} leaked into the answer")
+
+    allowed = expect.get("answer_confidence_in")
+    if allowed and result.answer_confidence not in allowed:
+        reasons.append(
+            f"answer_confidence {result.answer_confidence!r} not in {allowed}"
+        )
+    return (not reasons, reasons)
