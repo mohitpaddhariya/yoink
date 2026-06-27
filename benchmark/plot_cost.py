@@ -1,4 +1,4 @@
-"""Regenerate benchmark/cost.png from MEASURED data (results/cost.json + results/stress.json).
+"""Regenerate benchmark/figures/cost.png from MEASURED data (results/cost.json + results/stress.json).
 
 Run after costbench.py and stress.py (or via run.py). Every point is a real measured
 `total_cost_usd`: yoink's Haiku recall vs dumping the whole transcript into Opus ("read it
@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 RESULTS = Path(__file__).parent / "results"
-OUT = Path(__file__).parent / "cost.png"
+OUT = Path(__file__).parent / "figures" / "cost.png"
 PURPLE, RED, INK, MUTE, GRID = "#8B5CF6", "#EF4444", "#22272E", "#9AA0AA", "#ECEEF1"
 OPUS_IN = 5.0 / 1e6  # $/token, Opus input — the cost of N transcript tokens in your live context
 
@@ -94,7 +94,7 @@ def main() -> int:
 
     fig.tight_layout()
     fig.savefig(OUT, dpi=170, bbox_inches="tight", facecolor="white")
-    print("wrote benchmark/cost.png")
+    print("wrote benchmark/figures/cost.png")
     return 0
 
 

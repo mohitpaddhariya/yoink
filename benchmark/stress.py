@@ -29,7 +29,7 @@ from yoink.prompts import build_recall_prompt, parse_answer
 
 RESULTS_DIR = Path(__file__).parent / "results"
 STRESS_JSON = RESULTS_DIR / "stress.json"
-STRESS_PNG = Path(__file__).parent / "stress.png"
+STRESS_PNG = Path(__file__).parent / "figures" / "stress.png"
 
 SIZES = (5_000, 25_000, 100_000)
 DIFFICULTIES = ("easy", "medium", "hard")

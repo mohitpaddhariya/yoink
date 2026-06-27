@@ -27,7 +27,7 @@ from yoink.prompts import build_recall_prompt
 
 RESULTS_DIR = Path(__file__).parent / "results"
 RECALL_JSON = RESULTS_DIR / "recall.json"
-ACCURACY_PNG = Path(__file__).parent / "accuracy.png"
+ACCURACY_PNG = Path(__file__).parent / "figures" / "accuracy.png"
 RESOLUTION = "session_resolution"
 
 

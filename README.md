@@ -42,7 +42,7 @@ That's the whole point: **yoink tells you what a session decided, not everything
 
 ## Cheaper than reading the transcript yourself
 
-<p align="center"><img src="benchmark/cost.png" alt="cost: native vs yoink" width="620"></p>
+<p align="center"><img src="benchmark/figures/cost.png" alt="cost: native vs yoink" width="620"></p>
 
 Reading the other session "by hand" means loading its **whole transcript** into your chat — it's
 expensive, it clutters your context, and on a big session it simply doesn't fit. yoink reads it in a

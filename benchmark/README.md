@@ -23,7 +23,7 @@ Run it all: `uv run python benchmark/run.py` · watch progress from any terminal
 (substring + synonym aliases + light normalization) checks the answer. **"dead-end leak" = a ruled-out
 guess showing up in the conclusion.**
 
-![accuracy](accuracy.png)
+![accuracy](figures/accuracy.png)
 
 | Task type | What it tests | Accuracy | Dead-end leak |
 |---|---|--:|--:|
@@ -81,7 +81,7 @@ By session size the cost gap widens (measured `total_cost_usd`):
 | medium (~25K) | $0.49 | **$0.08** | 6.5× |
 | big (~100K) | $1.70 | **$0.23** | **7.3×** |
 
-![cost](cost.png)
+![cost](figures/cost.png)
 
 ## 3. Long-context stress — by size AND difficulty
 
@@ -90,7 +90,7 @@ A known conclusion buried in synthetic sessions from 5K–100K tokens, stated th
 turns with a correction off a dead end). Difficulty is the honest knob — a marker is far easier than an
 implied conclusion.
 
-![stress](stress.png)
+![stress](figures/stress.png)
 
 - **Easy, medium, AND hard all held at 100% across sizes.** yoink pulled the conclusion at every size
   and every difficulty — even when the conclusion is only *implied*, after a correction off a dead end,
@@ -105,7 +105,7 @@ implied conclusion.
 
 ## Did it hit the bar?
 
-The targets from [`STRATEGY.md`](STRATEGY.md) §2, and where v1 landed:
+The targets from [`STRATEGY.md`](../docs/benchmark-strategy.md) §2, and where v1 landed:
 
 | Target | Result |
 |---|---|
@@ -162,4 +162,4 @@ measured on recall quality, cost, and context economy, not on writing patches.
 Benchmark design draws on: **LongMemEval** (long-term memory: extraction, temporal reasoning,
 abstention), **LoCoMo** (conversational memory with evidence turns), **RULER** (long-context stress
 beyond needle-in-haystack), **LOFT** (long-context vs retrieval, cost framing), **Mem0** (memory
-benchmark on accuracy + tokens + p95 latency). Full rationale in [`STRATEGY.md`](STRATEGY.md).
+benchmark on accuracy + tokens + p95 latency). Full rationale in [`STRATEGY.md`](../docs/benchmark-strategy.md).
