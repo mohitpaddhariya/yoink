@@ -1,67 +1,77 @@
 <p align="center">
-  <img src="assets/yoink.png" alt="yoink" width="240">
+  <img src="assets/yoink.png" alt="yoink" width="220">
 </p>
 
 <h1 align="center">yoink</h1>
 
-<p align="center"><em>It already figured this out. Just ask it.</em></p>
-
-<p align="center">
-recalls the answer, not the whole transcript · a paragraph back, not the transcript · 3–7× cheaper than reading it yourself · read-only, never interrupts
-</p>
+<p align="center"><em>Ask another Claude session what it already figured out — without copy-paste.</em></p>
 
 ---
 
-You've got five Claude sessions open. One of them already debugged the auth bug an hour ago. To use
-that now, you switch windows, scroll back, copy, paste, and explain it all over again — and half the
-time you just redo work that was already done.
+You keep several Claude Code sessions open. One of them already solved the thing you're now stuck on.
+**yoink pulls that session's conclusion into your current one** — read-only, in a sentence, for pennies.
 
-yoink lets you ask, in plain words:
+## The use case
 
-> **what did my auth session conclude about the token bug?**
+Yesterday, a session spent an hour tracking down why your deploys hang — it tried three fixes, ruled
+them out, and found the real cause. Today you hit the same wall in a fresh session. Redo the hour?
+Scroll back through 300 messages and copy-paste? Or just ask:
 
-and the other session answers — with the conclusion it actually landed on.
-
-## The trick: it knows what a session *decided*, not just what it *said*
-
-Ask about a past session:
-
-> **what did my deploy session conclude about how to reach the staging server?**
+> **what did my deploy session conclude about the hang?**
 
 ```
-From staging-deploy · high confidence
-Answer:    It's on a private VM; dashboard at staging.example.internal, admin access is over the VPN only.
-Ruled out: direct SSH (the firewall blocks it) → use the VPN.  Kafka (there's none) → it's Redis.
+From deploy-debug · high confidence
+Answer:     The release job waits on a DB migration lock that never clears — run the migration out-of-band first.
+Ruled out:  the health-check timeout · a slow image pull · the connection-pool size.
 ```
 
-That session *tried* SSH and *tried* Kafka, hit walls, and moved on. yoink gives you what it **settled
-on** — and files the abandoned guesses under **ruled out**. A plain search over the transcript would
-have handed you "SSH" and "Kafka," the dead ends, just because the words are there.
+One sentence back. The hour it spent **ruling things out** is the part you'd most hate to repeat — and
+it's exactly what yoink hands you, with the dead ends kept *separate* from the answer.
 
-That's the whole point: **yoink tells you what a session decided, not everything it tried.**
+## yoink vs. doing it by hand
 
-## Cheaper than reading the transcript yourself
+The other session already has the answer. The only question is what it costs *you* to get it. Four ways, and what each actually means:
 
-<p align="center"><img src="benchmark/figures/cost.png" alt="cost: native vs yoink" width="620"></p>
+- **grep the transcript** — keyword-search the raw session log and read the matching lines yourself.
+- **read it yourself** — paste the *whole* transcript into your current chat and have the model answer from it.
+- **resume it** — reopen the old session with `claude --resume` and ask your question there.
+- **yoink** — a cheap, read-only recall step that hands back just the conclusion.
 
-Reading the other session "by hand" means loading its **whole transcript** into your chat — it's
-expensive, it clutters your context, and on a big session it simply doesn't fit. yoink reads it in a
-separate, cheap step and hands back a paragraph.
+|  | grep the transcript | read it yourself | resume it | **yoink** |
+|---|:--:|:--:|:--:|:--:|
+| Actually answers the question | ✗ dumps matching lines | ✓ | ✓ | **✓** |
+| Cost per question | ~$0 | $0.44 | $0.42 | **$0.07** |
+| Tokens dumped into your chat | 48,000 | 22,000 | 42,000 | **~900** |
+| Ruled-out dead ends kept *out* of the answer | ✗ | — | — | **✓ 0% leak** |
 
-| The other session is… | Read it yourself | yoink |
-|---|---|---|
-| small (~5K) | $0.18 | **$0.04** |
-| medium (~25K) | $0.49 | **$0.08** |
-| big (~100K) | $1.70 | **$0.23** |
-| huge (>1M) | won't fit | **just works** |
+<sub>Measured over 100 recall tasks + real sessions (`total_cost_usd` and returned tokens). yoink is a
+touch slower (~15s vs ~10s) as the recall fork spins up — the win is cost and a clean context. Full
+method: [`benchmark/`](benchmark/).</sub>
 
-<sub>"Read it yourself" = a model reads the whole transcript (Opus) to answer; "yoink" = the Haiku recall. Measured `total_cost_usd`, both. yoink also hands back ~900 tokens instead of the whole transcript.</sub>
+And the gap widens as the other session gets bigger:
 
-## How it works
+| The other session is… | read it yourself | yoink |  |
+|---|--:|--:|:--:|
+| small (~5K) | $0.18 | **$0.04** | 5× |
+| medium (~25K) | $0.49 | **$0.08** | 6× |
+| big (~100K) | $1.70 | **$0.23** | 7× |
+| huge (>1M) | won't fit | **just works** | — |
 
-1. You describe the session ("the auth one"). yoink finds it among your sessions.
-2. It re-opens that session's notes **read-only** and asks your question there.
-3. It hands you the answer, says which session it came from, and lists any dead ends.
+<p align="center"><img src="benchmark/figures/cost.png" alt="cost: read it yourself vs yoink" width="600"></p>
+
+## Why you can trust the answer
+
+A session *tries* things and *rules them out* as it goes. A plain search hands you those dead ends
+because the words are right there in the transcript. **yoink reports only the conclusion the session
+settled on, and files the abandoned guesses under `ruled out`** — never as the answer.
+
+Measured on 100 recall tasks:
+
+- **89%** overall recall · **0% dead-end leak** — it never once reported a ruled-out guess as the answer
+- **100%** on using the *latest* decision (not a superseded one) and on listing what was ruled out
+- when no conclusion was reached, it **says so** instead of inventing one (abstention precision **1.00**)
+
+Full numbers, methodology, and graphs: [`benchmark/`](benchmark/).
 
 ## Install
 
@@ -70,46 +80,31 @@ git clone https://github.com/mohitpaddhariya/yoink && cd yoink
 uv sync && uv run yoink-install
 ```
 
-That sets it up and tells Claude to reach for it on its own. Start a new Claude session and you're done.
+Start a new Claude session — it now reaches for yoink on its own.
 
-<sub>Prefer manual? `claude mcp add --scope user yoink -- uv run --directory "$(pwd)" yoink`</sub>
+<sub>Manual: `claude mcp add --scope user yoink -- uv run --directory "$(pwd)" yoink`</sub>
 
 ## Use it
 
-Just ask, in any Claude session:
+In any Claude session, just ask:
 
-> what did the &lt;topic&gt; session conclude about &lt;x&gt;?
+> what did the **&lt;topic&gt;** session conclude about **&lt;x&gt;**?
 
 Or from a terminal:
 
 ```bash
-uv run yoink-ask --all "staging deploy" "how do I reach the staging server?"
+uv run yoink-ask --all "deploy" "what was causing the hang?"
 ```
 
-## Good to know
+## How it works
 
-- **It reads, it never interrupts.** yoink looks at the other session's saved history. It never touches
-  the session you have running — the answer is from its last saved moment.
-- **It shows its work.** Which session, how confident. Trust it, or correct it.
-- **If it never reached a conclusion, it's built to say so** rather than invent one — and to flag a
-  *tentative* hypothesis as tentative (measured abstention precision 1.00, recall 0.78).
+1. You name the session in plain words ("the auth one") — yoink finds it among yours.
+2. It re-opens that session's transcript **read-only** and asks your question there.
+3. It returns the answer, which session it came from, and any ruled-out dead ends.
 
-## FAQ
-
-**Does it talk to my live session?** No — it reads the saved notes, read-only.
-
-**Which sessions can it see?** All of yours, on your machine. Nothing leaves your laptop.
-
-**What if it grabs the wrong session?** It tells you which one it used; if your hint is ambiguous it
-asks you to pick.
-
-**Does it actually work?** Measured across 100 recall tasks: **0% dead-end leak** (never reports a
-ruled-out guess as the answer), **100%** on latest-decision recall *and* on listing what was ruled
-out, and it tells a *settled* conclusion from a *tentative hypothesis* instead of faking one. 89%
-overall; weakest at picking a session from a vague hint. See `benchmark/`.
-
-**Is "cheaper" real?** Measured on real sessions, both ways. See `benchmark/`.
+It reads the other session's *saved* history, so it never touches a live session and nothing leaves
+your machine. If your hint is ambiguous, it shows the top candidates and asks you to pick.
 
 ---
 
-<sub>MIT · `uv run pytest` to run the tests</sub>
+<sub>MIT · <code>uv run pytest</code></sub>
