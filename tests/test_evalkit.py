@@ -76,8 +76,8 @@ def test_grade_conclusion_excludes():
     )
     result = RecallAnswer(answer="add an index; also the file handle leak", answer_confidence="high")
     passed, reasons = grade(fixture, result)
-    assert not passed
-    assert any("should not contain" in reason for reason in reasons)
+    assert not passed  # "file handle" presented as a problem, not in ruled-out language
+    assert any("file handle" in reason for reason in reasons)
 
 
 def test_grade_naming_a_ruled_out_dead_end_is_allowed():
@@ -133,3 +133,15 @@ def test_grade_no_conclusion_may_name_a_ruled_out_term():
     # but a SETTLED answer that surfaces the excluded term still fails.
     settled = RecallAnswer(answer="the cause was postgres", answer_confidence="high", no_conclusion=False)
     assert not grade(_fixture(expect={"conclusion_excludes": ["postgres"]}), settled)[0]
+
+
+def test_grade_settled_answer_may_name_dead_end_as_ruled_out():
+    # The crux fix: a settled answer naming the dead end in ruled-out language is NOT a leak.
+    fixture = _fixture(expect={"conclusion_contains": ["connection pool"], "conclusion_excludes": ["postgres"]})
+    good = RecallAnswer(answer="Connection pool exhaustion was the cause; postgres was ruled out.", answer_confidence="high")
+    assert grade(fixture, good)[0]
+    superseded = RecallAnswer(answer="Connection pool exhaustion, after ruling out postgres.", answer_confidence="high")
+    assert grade(fixture, superseded)[0]
+    # presenting the excluded term AS the cause still fails.
+    leak = RecallAnswer(answer="The cause was a postgres slowdown.", answer_confidence="high")
+    assert not grade(fixture, leak)[0]

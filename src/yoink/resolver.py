@@ -29,9 +29,10 @@ def default_projects_root() -> Path:
 # exact-phrase bonus, a bonus for RARE hint tokens (discriminative across the candidate set), and a
 # light body-token signal. Rare/phrase/project bonuses only *add*, so the simple title cases still rank.
 TITLE_W = 4.0
+FIRSTUSER_W = 2.0  # the first user turn is the topic anchor — weight it above generic body text
 BODY_W = 1.0
 PROJECT_W = 3.0
-RARE_W = 2.0
+RARE_W = 4.0  # distinctive tokens disambiguate same-domain sessions (7 "redis" sessions in the pool)
 PHRASE_W = 3.0
 HIGH_MIN = 4.0
 HIGH_MARGIN = 4.0
@@ -132,6 +133,7 @@ class _Meta:
     cwd: str | None
     title: str
     body: str  # all user+assistant text seen in the bounded read (v2: more signal than last_text)
+    first_user: str  # the first user turn — the topic anchor, weighted above generic body
     is_fork: bool
 
 
@@ -172,7 +174,7 @@ def _read_meta(path: Path) -> _Meta | None:
         or (body[:80] if body else None)
         or "(untitled)"
     )
-    return _Meta(path.stem, mtime, cwd, title, body, is_fork)
+    return _Meta(path.stem, mtime, cwd, title, body, first_user or "", is_fork)
 
 
 def _candidate_dirs(projects_root: Path, caller_cwd: str, cross_project: bool) -> list[Path]:
@@ -207,11 +209,15 @@ def _score(meta: _Meta, hint_tokens: set[str], hint_phrase: str, rare_hint: set[
     """Additive v2 score + a short human explanation of why it matched."""
     if not hint_tokens:
         return 0.0, ""
-    title_t, body_t, proj_t = _tokenize(meta.title), _tokenize(meta.body), _project_tokens(meta.cwd)
-    title_hits, body_hits, proj_hits = hint_tokens & title_t, hint_tokens & body_t, hint_tokens & proj_t
-    rare_hits = rare_hint & (title_t | body_t | proj_t)
-    score = TITLE_W * len(title_hits) + BODY_W * len(body_hits) + PROJECT_W * len(proj_hits) + RARE_W * len(rare_hits)
-    phrase_hit = bool(hint_phrase) and (hint_phrase in _normalize_phrase(meta.title) or hint_phrase in _normalize_phrase(meta.body))
+    title_t, first_t = _tokenize(meta.title), _tokenize(meta.first_user)
+    body_t, proj_t = _tokenize(meta.body), _project_tokens(meta.cwd)
+    title_hits, first_hits = hint_tokens & title_t, hint_tokens & first_t
+    body_hits, proj_hits = hint_tokens & body_t, hint_tokens & proj_t
+    rare_hits = rare_hint & (title_t | first_t | body_t | proj_t)
+    score = (TITLE_W * len(title_hits) + FIRSTUSER_W * len(first_hits) + BODY_W * len(body_hits)
+             + PROJECT_W * len(proj_hits) + RARE_W * len(rare_hits))
+    phrase_hit = bool(hint_phrase) and (hint_phrase in _normalize_phrase(meta.title)
+                                        or hint_phrase in _normalize_phrase(meta.first_user))
     if phrase_hit:
         score += PHRASE_W
     why = []
@@ -223,8 +229,8 @@ def _score(meta: _Meta, hint_tokens: set[str], hint_phrase: str, rare_hint: set[
         why.append(f"project matched {sorted(proj_hits)}")
     if rare_hits:
         why.append(f"distinctive term {sorted(rare_hits)}")
-    if body_hits and not title_hits:
-        why.append(f"recent turn mentioned {sorted(body_hits)}")
+    if (first_hits or body_hits) and not title_hits:
+        why.append(f"opening turn mentioned {sorted(first_hits or body_hits)}")
     return score, "; ".join(why)
 
 

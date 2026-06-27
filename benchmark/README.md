@@ -10,10 +10,12 @@ Three questions, measured on **real Claude sessions** (built, resumed, and answe
 Run it all: `uv run python benchmark/run.py` · watch progress from any terminal:
 `uv run python benchmark/progress.py`.
 
-> **These numbers survived two review passes.** A code review caught the first cut *flattering* yoink
-> (a baseline wrote the answer into the session yoink then read; cross-method metrics were
-> asymmetric). An ML-review pass then caught grader false-negatives, an abstention over-claim, and an
-> over-easy stress test. All fixed; everything below is the corrected re-run. Honest beats flattering.
+> **These numbers survived three review passes.** A code review caught the first cut *flattering* yoink
+> (a baseline wrote the answer into the session yoink then read; cross-method metrics were asymmetric).
+> Two ML-review passes then caught grader false-negatives — an abstention over-claim, an over-easy
+> stress test, and a blunt anti-leak check that failed correct answers for *naming* a ruled-out term.
+> All fixed; a tried-then-reverted output-shortening that hurt recall is documented below too. Honest
+> beats flattering.
 
 ## 1. Recall accuracy
 
@@ -26,28 +28,28 @@ guess showing up in the conclusion.**
 | Task type | What it tests | Accuracy | Dead-end leak |
 |---|---|--:|--:|
 | temporal_update | uses the latest decision, not the superseded one | **100%** | — |
+| ruled_out_recall | lists what was abandoned | **100%** | — |
 | dead_end_suppression | returns the ratified cause, not the dead ends | **94%** | **0%** |
 | conclusion_recall | finds the final decision | **93%** | — |
-| abstention | true-abstain or flag a tentative hypothesis (not over-claim) | 86% | — |
-| ruled_out_recall | lists what was abandoned | 86% | — |
-| session_resolution | finds the right session from a fuzzy hint (among ~100) | 69% | — |
-| long_transcript_stress | conclusion buried in a long, noisy session | 64% | **0%** |
-| **Overall** | | **85%** | **0%** |
+| long_transcript_stress | conclusion buried in a long, noisy session | **86%** | **0%** |
+| session_resolution | finds the right session from a fuzzy hint (among ~100) | 77% | — |
+| abstention | true-abstain or flag a tentative hypothesis (not over-claim) | 71% | — |
+| **Overall** | | **89%** | **0%** |
 
 **What's strong — and it's the part that matters:**
 
 - **0% dead-end leak.** Across every fixture with a ruled-out guess, yoink *never once* put the dead
   end in its conclusion (they go in a separate `ruled_out` field). That's the whole premise.
-- **It knows settled from tentative.** Abstention **F1 0.94** (precision **1.00**, recall **0.89**) —
-  after splitting no-conclusion cases into *true-abstention* (must stay silent) and *tentative
-  hypothesis* (may report a likely-but-unconfirmed cause **if** it flags it `hypothesis_only`). On the
-  9 true cases it abstains; on the 5 tentative ones it flags the hypothesis instead of over-claiming.
-  (The earlier 0.36 conflated the two — it demanded silence where a *flagged* hypothesis is correct.)
-- **100% on recency, 93–94% on the core decision tasks.**
+- **100% on recency and on listing what was ruled out; 93–94% on the core decision tasks.**
+- **It never over-claims.** Abstention **precision 1.00** (recall 0.78, F1 0.88) — when yoink commits,
+  the session had concluded. No-conclusion cases are split into *true-abstention* (must stay silent)
+  and *tentative hypothesis* (may report a likely-but-unconfirmed cause **if** it flags it
+  `hypothesis_only`); the recall variance is on whether it tags the tentative ones, never on inventing.
 
-**Where it's weaker, plainly:** picking the right session from a fuzzy hint among ~100 (**69%**, up
-from 54% after the resolver-v2 rewrite) and digging a conclusion out of a long noisy transcript
-(**64%**). These pull the overall to 85%. Real limitations, reported, not hidden.
+**Where it's weaker, plainly:** picking the right session from a fuzzy hint among ~100 (**77%**, up
+from 54% → 69% → 77% across resolver rewrites) and the *tentative-hypothesis* half of abstention
+(it abstains cleanly but doesn't always tag a hypothesis as tentative). These keep the overall at
+**89%, just under the 90% target**. Real limitations, reported, not hidden.
 
 ## 2. Cost & latency vs the alternatives
 
@@ -58,9 +60,9 @@ transcript. **Live-context = tokens you end up carrying to get the answer.**
 | Method | Answer accuracy ↑ | p50 latency ↓ | Cost/q ↓ | Live-context ↓ |
 |---|--:|--:|--:|--:|
 | grep | _evidence only*_ | **11 ms** | **$0.000** | 48,310 |
-| read it yourself (Opus, full transcript) | 100% | 9.3 s | $0.444 | 22,254 |
-| resume it yourself (Opus) | 100% | 10.7 s | $0.427 | 41,880 |
-| **yoink (Haiku recall)** | 100% | 11.1 s | **$0.070** | **890** |
+| read it yourself (Opus, full transcript) | 100% | 10.2 s | $0.443 | 22,254 |
+| resume it yourself (Opus) | 100% | 9.3 s | $0.424 | 41,630 |
+| **yoink (Haiku recall)** | 100% | 15.5 s | **$0.070** | **908** |
 
 <sub>*grep doesn't answer — it returns matching lines. "Evidence only" = the gold keyword is
 *somewhere* in the 48,310 tokens it dumps at you, which you still have to read. Not comparable to the
@@ -68,7 +70,8 @@ answer-accuracy of the other three.</sub>
 
 **Everyone finds the answer on these clear cases — the difference is what it costs and what it leaves
 in your lap.** yoink answers for **$0.070** (~6× cheaper than reading/resuming with Opus) and hands
-back **890 tokens** instead of leaving you on the 22K–48K-token transcript — **25–54× less to carry.**
+back **~900 tokens** instead of leaving you on the 22K–48K-token transcript — **25–53× less to carry.**
+(Latency is comparable — a touch slower here as the recall fork spins up; the win is cost and context.)
 
 By session size the cost gap widens (measured `total_cost_usd`):
 
@@ -89,15 +92,16 @@ implied conclusion.
 
 ![stress](stress.png)
 
-- **Easy and medium held at 100% across all sizes; the *hard* variant is genuinely harder.** With an
-  explicit marker (easy) or natural prose (medium), yoink pulled the conclusion at every size. The hard
-  variant — conclusion only *implied*, after a correction off a dead end, no marker — passed **8 of 9**
-  answerable cells (it missed the 25K cell this run). With one sample per cell it's noisy run-to-run,
-  but the difficulty knob is real, not decorative — it no longer guarantees a pass the way the marker did.
+- **Easy, medium, AND hard all held at 100% across sizes.** yoink pulled the conclusion at every size
+  and every difficulty — even when the conclusion is only *implied*, after a correction off a dead end,
+  with no marker. (An earlier run showed the 25K hard cell "failing"; that was a grader false-negative
+  — the model answered correctly but *named* the dead end as ruled-out, which the blunt anti-leak check
+  wrongly flagged. Context-aware grading fixed it; the difficulty levels are still real, the model just
+  handles them.)
 - **Cost scales gently:** **$0.026 → $0.053 → $0.158** for 5K → 25K → 100K.
 - **Distractors don't fool it**, and it **picks the updated decision over the superseded one** at scale.
 - **On the unanswerable cell it correctly abstains** (no_conclusion, confidence none) — and naming a
-  ruled-out term while abstaining no longer counts as a leak (a grader false-negative the review caught).
+  ruled-out term while abstaining no longer counts as a leak (the false-negative the review caught).
 
 ## Did it hit the bar?
 
@@ -106,10 +110,10 @@ The targets from [`STRATEGY.md`](STRATEGY.md) §2, and where v1 landed:
 | Target | Result |
 |---|---|
 | ≤5% dead-end error rate | ✅ **0%** |
-| high abstention precision (never invent) | ✅ **1.00** (recall 0.89, F1 0.94) |
+| high abstention precision (never invent) | ✅ **1.00** (recall 0.78, F1 0.88) |
 | ≥3× lower cost than full transcript (medium) | ✅ **6.5×** ($0.075 vs $0.490) |
-| ≥10× lower live-context than full transcript | ✅ **25×** (890 vs 22,254 tokens) |
-| ≥90% recall accuracy | ⚠️ **85%** overall (93–100% on core decision tasks; fuzzy resolution 69% + buried long-context 64% pull it down) |
+| ≥10× lower live-context than full transcript | ✅ **25×** (908 vs 22,254 tokens) |
+| ≥90% recall accuracy | ⚠️ **89%** overall — *so close* (100% ruled-out + temporal, 93–94% core decision; fuzzy resolution 77% + tentative-abstention tagging keep it just under) |
 
 ## How it's measured (honestly)
 
@@ -123,9 +127,15 @@ The targets from [`STRATEGY.md`](STRATEGY.md) §2, and where v1 landed:
   leaves in your session. grep is reported as evidence-containment, not answer accuracy.
 - **Grader validity.** Synonym alias-groups (`conclusion_contains_any`) and hyphen/punctuation
   normalization, so "clock skew" satisfies "clock drift" and "60-second" satisfies "60 seconds".
-  Every cost/stress row stores its raw + parsed answer and grade reasons for audit.
+  Anti-leak is **context-aware**: naming a dead end in *ruled-out / superseded* language ("postgres was
+  ruled out") is correct, not a leak — only presenting it *as the cause* fails. Every cost/stress row
+  stores its raw + parsed answer and grade reasons for audit.
 - **`decision_status`.** The recall schema distinguishes *settled* / *hypothesis_only* / *open*, so a
   likely-but-unconfirmed cause is reported and flagged rather than forced into a false binary.
+- **Compactness vs recall, decided honestly.** A tried output-shortening (hard word/item caps) cut
+  recall ~13 points by dropping ruled-out items and the exact cause terms the grader checks — so it
+  was reverted. ~900 returned tokens is already 25× lighter than the alternatives; trimming further
+  needs a smarter approach than a word budget.
 - **Synthetic & seeded.** v1 is 100 hand-authored fixtures across the 7 STRATEGY categories — "real
   seeded sessions", not arbitrary real-world coverage. A corpus of real annotated sessions (STRATEGY
   v2) is the honest next step.

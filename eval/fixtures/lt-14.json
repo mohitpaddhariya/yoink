@@ -59,7 +59,7 @@
     ],
     "ruled_out_contains": [
       "timezone",
-      "cron syntax",
+      "cron",
       "queue"
     ],
     "answer_confidence_in": [

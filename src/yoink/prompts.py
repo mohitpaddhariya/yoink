@@ -35,6 +35,7 @@ Rules:
   a theory not yet tested); "open" if it stayed unresolved. Do NOT present a hypothesis_only/open answer as
   settled fact, and for "open" set no_conclusion=true.
 - evidence_quote: a short EXACT quote from the session showing where it was settled (or what was left open).
+- Keep ruled_out to the genuinely-abandoned paths, named plainly -- but do NOT drop one to save space.
 
 Reply with ONLY a JSON object of this shape, nothing else:
 {

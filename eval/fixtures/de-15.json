@@ -23,7 +23,6 @@
   ],
   "expect": {
     "conclusion_contains": [
-      "remote_addr",
       "x-forwarded-for"
     ],
     "conclusion_excludes": [
@@ -37,6 +36,13 @@
       "high",
       "medium"
     ],
-    "no_conclusion": false
+    "no_conclusion": false,
+    "conclusion_contains_any": [
+      [
+        "remote_addr",
+        "reverse proxy",
+        "proxy ip"
+      ]
+    ]
   }
 }

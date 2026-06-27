@@ -1,407 +1,456 @@
-# Benchmark review notes
+# Benchmark Review Notes
 
-Review date: 2026-06-27
+Date reviewed: 2026-06-28
 
-These are ML Intern's review notes after inspecting the current `benchmark/` suite, generated plots, result JSONs, and Yoink architecture.
+This file replaces the older benchmark-review notes. It reflects the latest benchmark/code state after the README wording fixes and the no-conclusion grader fix.
 
-## Short verdict
+Reviewed artifacts:
 
-The benchmark is useful and much stronger than the original hardcoded cost graph. It now supports Yoink's core claim that it separates settled conclusions from dead ends and saves cost/context.
+- `benchmark/accuracy.png`
+- `benchmark/cost.png`
+- `benchmark/stress.png`
+- `benchmark/results/recall.json`
+- `benchmark/results/cost.json`
+- `benchmark/results/stress.json`
+- `benchmark/README.md`
+- `README.md`
+- `eval/evalkit.py`
 
-However, some numbers are misleading or fragile. Before using the benchmark heavily in public, fix the abstention overclaim, baseline fairness issues, stress benchmark overfitting, and exact-match grader false negatives.
+Validation run:
 
-## Current strong claims
+```bash
+uv run pytest -q
+# 144 passed, 2 skipped
 
-Supported by current results:
+uv run python benchmark/validate_fixtures.py
+# loaded 100 fixtures
+# all fixtures structurally valid
 
-- **0% dead-end leak** across Track A fixtures with `conclusion_excludes`.
-- **100% conclusion recall** on direct conclusion tasks.
-- **100% temporal update recall** on latest-decision tasks.
-- **Cost advantage exists**: Yoink mean cost in Track B is about `$0.069` vs full transcript `$0.441` and native resume `$0.429`.
-- **Live-context advantage is strong**: Yoink returns about `771` tokens vs tens of thousands for full transcript/native/grep outputs.
+uv run python benchmark/usage.py --selftest
+# usage.py selftest ok
+```
 
-Best public framing:
+## Executive summary
 
-> Yoink reliably separates settled conclusions from dead ends, and returns a compact answer instead of making the user carry the whole transcript.
+The benchmark is now credible, public-usable, and much more honest than the first version.
 
-## Current weak areas
+The previous review items were mostly fixed:
+
+- Root README no longer makes an absolute no-conclusion claim.
+- Benchmark README no longer claims the full stress suite is trivially 100%.
+- The no-conclusion grader bug was fixed: an abstaining answer can mention a ruled-out term as ruled out.
+- `decision_status` separates `settled`, `hypothesis_only`, and `open`.
+- The grader has synonym alias groups and light normalization.
+- Full-transcript baseline reads the real built Claude JSONL transcript.
+- Native resume baseline is forked and tool-disabled.
+- Grep is framed as evidence retrieval only, not answer accuracy.
+- Stress now has easy / medium / hard difficulty, not just a `FINAL CONCLUSION:` marker.
+- Resolver v2 improved fuzzy session resolution from 54% to 69%.
+- Raw answers and grade reasons are saved for audit.
+
+Main remaining issue:
+
+> The grader still treats any excluded/dead-end term in a settled answer as a leak, even when the answer explicitly says that term was ruled out.
+
+This creates current false negatives in the stress benchmark. The next fix should make anti-leak grading context-aware: fail only when the excluded term is presented as the answer/cause, not when it is mentioned under “ruled out.”
+
+## Current benchmark results
+
+### Track A — recall accuracy
 
 From `benchmark/results/recall.json`:
 
-- Overall accuracy: **74%**.
-- Session resolution: **54%**.
-- Abstention accuracy/recall: **36%**.
-- Long transcript stress category in Track A: **57%**.
+| Metric | Current |
+|---|---:|
+| Fixtures | 100 |
+| Overall accuracy | **85%** |
+| Dead-end leak rate | **0%** |
+| Abstention precision | **1.00** |
+| Abstention recall | **0.89** |
+| Abstention F1 | **0.94** |
 
-These should be treated as product improvement targets, not hidden.
+By category:
 
-## Important benchmark correctness issues
+| Category | Accuracy |
+|---|---:|
+| temporal_update | **100%** |
+| dead_end_suppression | **93.8%** |
+| conclusion_recall | **93.3%** |
+| abstention | **85.7%** |
+| ruled_out_recall | **85.7%** |
+| session_resolution | **69.2%** |
+| long_transcript_stress | **64.3%** |
 
-### 1. README overclaims abstention
+Track A has 15 failed fixtures:
 
-Current README wording says Yoink never invented a conclusion when a session had not reached one. That is too strong.
+- 4 session-resolution misses
+- 2 abstention / tentative-status misses
+- 5 long-transcript misses
+- 2 ruled-out-list misses
+- 1 conclusion wording miss
+- 1 dead-end-suppression wording/ruled-out miss
 
-Track A shows:
+Interpretation:
 
-```text
-abstention n = 14
-true positives = 5
-false negatives = 9
-precision = 1.00
-recall = 0.36
-F1 = 0.53
-```
+- Yoink is strongest on the core product premise: recall the settled conclusion, not the discarded hypotheses.
+- The strongest claim remains **0% dead-end leak** on Track A.
+- The weakest user-facing area is still fuzzy session resolution.
+- Natural long/noisy transcripts also need more work.
 
-Better wording:
+### Track B — cost / latency
 
-> Yoink never reported a ruled-out dead end as the answer. On no-conclusion cases, abstention is conservative when it happens — precision 1.00 — but incomplete: it abstained on 5/14 open investigations.
+From `benchmark/results/cost.json`:
 
-### 2. Some abstention fixtures may be mislabeled
+| Method | Accuracy / evidence | Mean cost | Mean live context | p50 latency |
+|---|---:|---:|---:|---:|
+| grep | evidence only | $0.000 | 48,310 tok | 11 ms |
+| full-transcript Opus | 100% | $0.444 | 22,254 tok | 9.3s |
+| native resume Opus | 100% | $0.427 | 41,880 tok | 10.7s |
+| Yoink Haiku recall | 100% | **$0.070** | **890 tok** | 11.1s |
 
-Several `ab-*` fixtures contain strong causal evidence but expect `no_conclusion=true`. Example patterns:
+Useful claims:
 
-- `ab-07` strongly suggests a TOCTOU race.
-- `ab-11` states shard assignment failed because nodes exceeded disk high watermark.
-- `ab-12` identifies multiple partial causes.
+- Yoink is about **6× cheaper** than full-transcript / native-resume Opus on this benchmark.
+- Yoink returns about **25× less live context** than full transcript on average.
+- On the ~25K-token medium session, Yoink is **6.5× cheaper**.
+- On the ~100K-token big session, Yoink is **7.3× cheaper**.
 
-The binary `no_conclusion` label is too coarse.
+Important caveat:
 
-Recommended split:
+- Grep does not answer. It only returns matching lines. Keep calling it “evidence only” or “evidence containment,” not answer accuracy.
 
-| Category | Expected behavior |
-|---|---|
-| `true_abstention` | no plausible cause; must set `no_conclusion=true` |
-| `tentative_hypothesis` | likely cause but not settled; answer with low confidence or mark hypothesis-only |
+### Track C — long-context stress
 
-### 3. Exact substring grading creates false negatives
-
-Examples:
-
-- Expected `60 seconds`, answer says `60-second`.
-- Expected `clock drift`, answer says `clock skew`.
-- Expected `producer throughput`, answer says `producer sending too fast`.
-
-Add alias/normalization support:
-
-```json
-"conclusion_contains_any": [
-  ["60 seconds", "60-second", "60s"],
-  ["clock drift", "clock skew", "time skew", "NTP drift"]
-]
-```
-
-or normalize hyphens/plurals and use a synonym map.
-
-### 4. Stress benchmark is over-easy / partially overfit
-
-`benchmark/sessions.py` stress generator uses explicit markers like:
-
-```text
-FINAL CONCLUSION: ...
-```
-
-This makes Track C easier than real sessions. Track C gets 9/9 on the grid, while Track A `long_transcript_stress` is only 57%, which suggests Track C is not measuring the same difficulty.
-
-Improve Track C with difficulty levels:
-
-| Level | Evidence style |
-|---|---|
-| Easy | explicit `FINAL CONCLUSION:` marker |
-| Medium | natural wording: `we landed on`, `confirmed`, `root cause is` |
-| Hard | conclusion implied across several turns and later corrections |
-
-Report each separately.
-
-### 5. Stress JSON lacks enough failure detail
-
-`benchmark/results/stress.json` has an unanswerable cell with:
-
-```json
-"passed": false,
-"abstained": true
-```
-
-But README says the cell drew a confident answer. The JSON does not store raw answer or grade reasons, so this cannot be audited.
-
-Store for every stress row:
+From `benchmark/results/stress.json`:
 
 ```json
 {
-  "raw_result": "...",
-  "parsed_answer": "...",
-  "confidence": "...",
-  "ruled_out": [],
-  "no_conclusion": true,
-  "grade_reasons": []
+  "accuracy_by_difficulty": {
+    "easy": 1.0,
+    "medium": 1.0,
+    "hard": 0.67
+  }
 }
 ```
 
-### 6. Full-transcript baseline does not use actual built transcript
+Grid details:
 
-`costbench.py` uses fixture turns:
+| Size | Easy | Medium | Hard |
+|---:|---:|---:|---:|
+| 5K | pass | pass | pass |
+| 25K | pass | pass | fail |
+| 100K | pass | pass | pass |
+
+Other cells:
+
+| Cell | Current result |
+|---|---|
+| update | fail |
+| unanswerable | pass |
+
+Important: the previous unanswerable-cell false negative is fixed. It now passes.
+
+Current stress failures are different:
+
+1. **25K hard answerable cell**
+
+   Answer:
+
+   ```text
+   Connection pool exhaustion was the root cause — postgres instances were ruled out,
+   but once instrumented properly, connection pool exhaustion was identified and patched,
+   stopping the noise.
+   ```
+
+   Grade reason:
+
+   ```text
+   answer should not contain: 'postgres'
+   ```
+
+   This is a false negative. The answer says Postgres was ruled out, not that Postgres was the cause.
+
+2. **25K update cell**
+
+   Answer:
+
+   ```text
+   Connection pool exhaustion — the session confirmed this as the root cause after ruling out
+   DNS misconfiguration and all postgres instances.
+   ```
+
+   Grade reason:
+
+   ```text
+   answer should not contain: 'dns misconfiguration'
+   ```
+
+   This is also a false negative. The answer correctly says DNS misconfiguration was ruled out / superseded.
+
+## Confirmed fixes since prior review
+
+### 1. Root README no-conclusion claim softened
+
+Current root README says:
+
+```md
+If it never reached a conclusion, it's built to say so rather than invent one — and to flag a
+tentative hypothesis as tentative (measured abstention precision 1.00, recall 0.89).
+```
+
+This is good. It avoids the previous absolute claim.
+
+### 2. Benchmark README stress wording improved
+
+Current benchmark README says:
+
+```md
+Easy and medium held at 100% across all sizes; the hard variant is genuinely harder.
+```
+
+and reports:
+
+```md
+passed 8 of 9 answerable cells
+```
+
+This is honest. It shows the stress difficulty knob is real instead of decorative.
+
+### 3. No-conclusion anti-leak bug fixed
+
+`eval/evalkit.py` now has:
 
 ```python
-def _transcript_text(fx):
-    return "\n".join(f"[{role}] {text}" for role, text in fx.turns)
+if not result.no_conclusion:
+    for keyword in expect.get("conclusion_excludes", []):
+        if _normalize(keyword) in answer:
+            reasons.append(f"answer should not contain: {keyword!r}")
 ```
 
-But the benchmark claims full-transcript baseline reads the whole real session transcript. For fairness, parse the actual Claude JSONL transcript for the cached session.
+This fixed the prior issue where an abstaining answer like:
 
-Add something like:
+```text
+No root cause was identified. Investigation ruled out postgres.
+```
+
+would fail just because it contained `postgres`.
+
+I verified the no-conclusion edge case now grades as pass.
+
+### 4. Baselines remain fair
+
+The benchmark still uses:
+
+- actual JSONL transcript for full-transcript baseline
+- forked, tool-disabled native resume
+- grep as evidence-only
+- measured Claude cost from `total_cost_usd`, not estimated cost
+
+### 5. Tests and fixture validation pass
+
+Latest validation:
+
+```bash
+144 passed, 2 skipped
+all fixtures structurally valid
+usage.py selftest ok
+```
+
+## Remaining issue: anti-leak grading is still too blunt for settled answers
+
+Current anti-leak logic allows excluded terms only when `result.no_conclusion` is true. That fixes abstention, but it still fails good settled answers that mention dead ends in a ruled-out context.
+
+Example good settled answer:
+
+```text
+Connection pool exhaustion was the root cause — postgres instances were ruled out.
+```
+
+This should pass because:
+
+- answer/cause = connection pool exhaustion
+- dead end = postgres
+- answer explicitly says postgres was ruled out
+
+Current grader fails because it checks only:
 
 ```python
-sessions.transcript_text(session_id)
+if "postgres" in answer:
+    fail
 ```
 
-using the same defensive message extraction approach as `resolver.py`.
+### Recommended fix
 
-### 7. Native resume baseline is not fully tool-disabled
+Make dead-end leak grading context-aware.
 
-`costbench.py` native resume currently does not pass `--tools ""`.
+Fail only when an excluded term is presented as the cause/conclusion, not when it appears in ruled-out/superseded language.
 
-Use stdin to avoid greedy `--tools` issues:
+Suggested helper:
 
 ```python
-cmd = [
-  "claude", "-p",
-  "--resume", ref["session_id"],
-  "--fork-session",
-  "--model", OPUS,
-  "--permission-mode", "plan",
-  "--output-format", "json",
-  "--tools", ""
-]
-run = usage.measure(cmd, input=fx.question, cwd=ref["cwd"], timeout=900)
+def _mentions_as_ruled_out(answer: str, keyword: str) -> bool:
+    a = _normalize(answer)
+    k = _normalize(keyword)
+    patterns = [
+        rf"ruled out .{{0,80}}\b{re.escape(k)}\b",
+        rf"\b{re.escape(k)}\b .{{0,80}} ruled out",
+        rf"ruling out .{{0,80}}\b{re.escape(k)}\b",
+        rf"after ruling out .{{0,80}}\b{re.escape(k)}\b",
+        rf"\b{re.escape(k)}\b .{{0,80}} didn t hold up",
+        rf"\b{re.escape(k)}\b .{{0,80}} did not hold up",
+        rf"superseded .{{0,80}}\b{re.escape(k)}\b",
+        rf"\b{re.escape(k)}\b .{{0,80}} superseded",
+        rf"initial hypothesis .{{0,80}}\b{re.escape(k)}\b",
+    ]
+    return any(re.search(p, a) for p in patterns)
 ```
 
-### 8. Grep `accuracy` is misleading
+Then change anti-leak grading to:
 
-Grep does not answer. It only returns matching lines. Current `grep accuracy = 100%` means the returned match set contains the gold keywords somewhere.
-
-Rename this metric to:
-
-```text
-evidence_contains_answer
+```python
+for keyword in expect.get("conclusion_excludes", []):
+    k = _normalize(keyword)
+    if k in answer and not _mentions_as_ruled_out(result.answer, keyword):
+        reasons.append(f"answer should not present as conclusion: {keyword!r}")
 ```
 
-or
+This should make the two current stress false negatives pass without weakening real dead-end detection.
 
-```text
-gold evidence found in match set
-```
+### Better long-term grading model
 
-Do not compare it directly to answer accuracy.
-
-## Overfitting assessment
-
-The v1 benchmark is partially overfit because:
-
-- Fixtures are synthetic and hand-authored.
-- The same style of fixtures can influence prompt tuning.
-- The grader uses exact substrings.
-- Stress fixtures use explicit conclusion markers.
-- Built sessions are very clean because each user turn asks Claude to acknowledge briefly and not investigate.
-
-This is acceptable for v1, but public claims should say `synthetic seeded sessions`, not imply arbitrary real-world coverage.
-
-## Benchmark improvements roadmap
-
-### Priority 1 — Correct public claims
-
-- Fix README abstention claim.
-- Report abstention as precision/recall, not `never invents`.
-- Separate resolver score from answerer score in headline.
-
-### Priority 2 — Fix baseline fairness
-
-- Make native resume baseline tool-disabled by default.
-- Make full-transcript baseline use actual JSONL transcript text.
-- Rename grep accuracy to evidence containment.
-- Store raw answers and grade reasons for cost/stress rows.
-
-### Priority 3 — Improve grader validity
-
-- Add alias groups / synonym matching.
-- Normalize hyphenation, punctuation, and simple singular/plural forms.
-- Add optional manual/LLM judge only as secondary evidence, not sole grader.
-
-### Priority 4 — Make stress harder
-
-- Remove `FINAL CONCLUSION` marker from medium/hard stress variants.
-- Add multi-turn conclusions, superseded decisions, side conversations, and noisy later turns.
-- Report easy/medium/hard stress separately.
-
-### Priority 5 — Add holdout and real-session v2
-
-Create fixture splits:
-
-```text
-eval/fixtures/train/
-eval/fixtures/holdout/
-```
-
-Use only holdout for public headline after prompt tuning.
-
-Then add real anonymized sessions:
-
-```text
-30 real Claude sessions × 3 questions/session = ~90 real questions
-```
-
-Annotate gold answer, ruled-out paths, and evidence quote.
-
-## Yoink architecture improvements
-
-### 1. Resolver v2 is highest-impact
-
-Current session resolution is ~54%. Current resolver mostly uses title and last assistant text. Improve with a local lexical index.
-
-Index per session:
-
-- title
-- project/cwd tokens
-- first user message
-- recent user messages
-- recent assistant messages
-- file paths
-- endpoints
-- service names
-- package names
-- error codes
-- cloud resource names
-
-Scoring idea:
-
-```text
-score = title_score * 4
-      + project_score * 3
-      + exact_phrase_score * 3
-      + rare_token_score * 2
-      + body_score
-      + recency_tiebreak
-```
-
-Add disambiguation when top scores are close instead of picking wrong.
-
-Add `--explain-source` / source explanation:
-
-```text
-Matched because:
-- title contained "redis cpu"
-- recent turn mentioned "synchronized expiry"
-- project matched current cwd
-```
-
-### 2. Recall schema should distinguish settled vs hypothesis
-
-Current schema only has `no_conclusion`. Add:
+Instead of using `conclusion_excludes` as a raw substring ban, split expectation fields:
 
 ```json
 {
-  "decision_status": "settled | hypothesis_only | open",
-  "answer": "...",
-  "answer_confidence": "high | medium | low | none",
-  "ruled_out": [],
-  "evidence_quote": "...",
-  "no_conclusion": false
+  "conclusion_contains": ["connection pool exhaustion"],
+  "answer_must_not_present_as_cause": ["postgres"],
+  "ruled_out_contains": ["postgres"]
 }
 ```
 
-Rules:
+This reflects the actual product behavior: Yoink is supposed to mention abandoned paths, but label them as abandoned.
 
-- Only `settled` when the session explicitly confirmed/found/landed on a conclusion.
-- Use `hypothesis_only` for plausible but unconfirmed mechanisms.
-- Use `open` when unresolved.
-- For `hypothesis_only` or `open`, set `no_conclusion=true` or return a safe no-conclusion shape with the hypothesis listed separately.
+## Current public positioning
 
-This targets the weak abstention score.
-
-### 3. Require evidence quote before high confidence
-
-Prompt should require an exact quote showing where the conclusion was settled.
-
-Post-parse rule:
-
-```python
-if answer_confidence == "high" and not cited_turn:
-    downgrade to "medium"
-```
-
-For no-conclusion, evidence quote should show the investigation remained open.
-
-### 4. Add optional verifier pass for risky cases
-
-Run a second cheap verifier only when needed:
-
-- no evidence quote
-- low/none confidence
-- answer looks like a hypothesis
-- resolver match is medium
-- session is long
-- no_conclusion expected/ambiguous
-
-Verifier prompt:
-
-```text
-Given this proposed answer and the prior session context, was the answer actually settled?
-Return one of: settled, hypothesis_only, open.
-```
-
-### 5. Reduce output length
-
-Current Yoink live context averages ~771 tokens. Target under 250 tokens.
-
-Prompt constraints:
-
-```text
-answer <= 80 words
-ruled_out <= 3 bullets
-each ruled_out <= 12 words
-```
-
-### 6. Add answer cache
-
-Cache repeated recalls:
-
-```text
-(session_id, transcript_mtime, question_hash, model) -> parsed RecallAnswer
-```
-
-This makes repeated questions instant and cheaper.
-
-## Recommended updated public positioning
-
-Do not lead with the 74% overall score because it mixes different subsystems.
-
-Lead with:
+Recommended headline:
 
 ```text
 On 100 real seeded Claude sessions:
+- 85% overall recall accuracy
 - 0% dead-end leak
-- 100% direct conclusion recall
-- 100% temporal update recall
-- 6.6× cheaper than full-transcript reading on medium sessions
-- 29× less live context
+- 100% latest-decision recall
+- 93–94% accuracy on core conclusion/dead-end tasks
+- about 6× cheaper than full-transcript/native-resume Opus
+- about 25× less live context than full transcript
 ```
 
-Then state current limitations honestly:
+Best narrative:
 
 ```text
-Current weak spots:
-- fuzzy session resolution: 54%
-- no-conclusion recall: 36%
-- natural long noisy sessions: 57%
+Yoink is strongest where search fails: distinguishing the final decision from discarded hypotheses.
+Across 100 real seeded Claude sessions, it had 0% dead-end leak and 93–100% accuracy on core decision-recall tasks.
 ```
 
-## Immediate next actions
+Be honest about limitations:
 
-1. Fix README abstention wording.
-2. Fix native resume baseline to include `--tools ""`.
-3. Parse actual JSONL transcript for full-transcript baseline.
-4. Rename grep accuracy metric.
-5. Add alias/normalization support to the grader.
-6. Audit/relabel abstention fixtures.
-7. Add raw answer + grade reasons to stress/cost outputs.
-8. Add medium/hard stress variants without `FINAL CONCLUSION` markers.
-9. Implement resolver v2 lexical index.
-10. Add `decision_status` and `evidence_quote` to recall schema.
+```text
+Overall recall is 85%. Weakest areas are fuzzy session resolution at 69% and natural long/noisy transcripts at 64%.
+```
+
+Stress claim:
+
+```text
+In synthetic long-context stress, Yoink hit 100% on easy and medium conclusion styles across 5K, 25K, and 100K tokens. The hard implied-conclusion variant is harder and currently passes 2/3 sizes in the latest run; the 25K hard miss is likely a grader false negative because the answer correctly says the dead end was ruled out.
+```
+
+Cost claim:
+
+```text
+Yoink answered for $0.070/query on average versus $0.444 for full-transcript Opus and $0.427 for native-resume Opus, while returning ~890 live-context tokens instead of ~22K–42K.
+```
+
+## Recommended next engineering priorities
+
+1. **Make anti-leak grading context-aware.**
+   - Do not fail a settled answer merely for saying “X was ruled out.”
+   - Fail only when X is presented as the cause/conclusion.
+
+2. **Rerun `benchmark/stress.py` and regenerate `benchmark/stress.png`.**
+   - The current stress false negatives should likely disappear.
+
+3. **Update `benchmark/README.md` after the rerun.**
+   - If context-aware anti-leak grading fixes the stress false negatives, update Track C numbers.
+   - If not, keep the current honest 8/9 hard wording.
+
+4. **Improve resolver from 69% toward 85%+.**
+   - Index first user turn and recent user turns separately.
+   - Extract file paths, endpoints, package names, error codes, service names, cloud resources.
+   - When top scores are close, ask user to choose instead of guessing.
+
+5. **Improve Track A long-transcript category from 64%.**
+   - Inspect failed `lt-*` raw answers.
+   - Add alias groups for phrasing-equivalent answers.
+   - Add evidence quote validation and/or a verifier pass for long sessions.
+
+6. **Shorten Yoink output.**
+   - Current benchmark live context is around 890 tokens.
+   - Product target should be under 250 tokens for ordinary answers.
+
+7. **Add usability metrics.**
+   - Time-to-answer.
+   - Correction rate.
+   - Follow-up rate.
+   - Manual effort saved.
+   - Confidence calibration.
+   - Session-pick accuracy.
+   - Dead-end confusion rate.
+
+## Suggested usability benchmark
+
+Design:
+
+- 12–20 tasks sampled from real or seeded sessions.
+- Compare manual transcript search vs Yoink.
+- Within-subject design: each participant uses both methods on different tasks.
+
+Measure:
+
+| Metric | Definition | Why it matters |
+|---|---|---|
+| Time to answer | Seconds from prompt to usable answer | Workflow speed |
+| Correctness | Whether answer matches gold conclusion | Core utility |
+| Correction rate | % cases user says wrong session/answer | Trust and friction |
+| Follow-up rate | % answers needing clarification | Answer usefulness |
+| Manual effort saved | Lines/screens/tokens avoided | Context economy |
+| Confidence calibration | Whether high/medium/low matches correctness | Trustworthiness |
+| Dead-end confusion rate | % cases user acts on a ruled-out path | Core Yoink value |
+| Session-pick accuracy | Whether selected session was intended | Resolver quality |
+| Answer compactness | Returned words/tokens | Context hygiene |
+
+Main usability KPI:
+
+```text
+Yoink reduces time-to-correct-answer by at least 3× while maintaining or improving correctness.
+```
+
+## Bottom line
+
+The benchmark is now strong and usable.
+
+Current state:
+
+- Code/tests: good.
+- Track A: credible, 85% overall, 0% dead-end leak.
+- Track B: strong cost/context story.
+- Track C: improved and more honest; remaining failures are likely grader false negatives around ruled-out mentions.
+- README wording: much improved.
+
+Before claiming the stress suite is fully solved, make the anti-leak grader context-aware and rerun stress.
+
+Public-safe claim today:
+
+> Yoink is a read-only Claude Code memory-recall layer. On 100 real seeded Claude sessions, it had 0% dead-end leak, 100% latest-decision recall, 93–94% accuracy on core decision/dead-end tasks, and was about 6× cheaper with about 25× less live context than full-transcript reading.
+
+Caveat:
+
+> Overall accuracy is 85%; weakest areas are fuzzy session resolution and buried conclusions in long noisy sessions. The stress benchmark’s remaining failures appear to be grader false negatives where Yoink correctly mentions dead ends as ruled out.

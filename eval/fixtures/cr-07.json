@@ -4,15 +4,39 @@
   "session_hint": "the Stripe order fulfillment investigation",
   "question": "What did we conclude was causing orders to never reach fulfilled status after successful Stripe payment?",
   "turns": [
-    ["user", "After a Stripe payment completes successfully, orders are stuck in 'pending' indefinitely instead of moving to 'fulfilled'. Started three days ago. Stripe dashboard confirms payments are going through fine."],
-    ["user", "Checked our webhook endpoint logs. Webhooks from Stripe are arriving and we're returning 200 — no exceptions thrown by the handler."],
-    ["user", "Found it: our webhook handler checks for event.type === 'payment_intent.created' to trigger order fulfillment. It should be checking for payment_intent.succeeded. The created event fires when a PaymentIntent is initialized, before the customer pays anything."],
-    ["user", "Switched the event type filter to payment_intent.succeeded. Orders immediately start moving to fulfilled on payment. Root cause: wrong Stripe event type — we were handling payment_intent.created instead of payment_intent.succeeded."]
+    [
+      "user",
+      "After a Stripe payment completes successfully, orders are stuck in 'pending' indefinitely instead of moving to 'fulfilled'. Started three days ago. Stripe dashboard confirms payments are going through fine."
+    ],
+    [
+      "user",
+      "Checked our webhook endpoint logs. Webhooks from Stripe are arriving and we're returning 200 — no exceptions thrown by the handler."
+    ],
+    [
+      "user",
+      "Found it: our webhook handler checks for event.type === 'payment_intent.created' to trigger order fulfillment. It should be checking for payment_intent.succeeded. The created event fires when a PaymentIntent is initialized, before the customer pays anything."
+    ],
+    [
+      "user",
+      "Switched the event type filter to payment_intent.succeeded. Orders immediately start moving to fulfilled on payment. Root cause: wrong Stripe event type — we were handling payment_intent.created instead of payment_intent.succeeded."
+    ]
   ],
   "expect": {
-    "conclusion_contains": ["payment_intent.succeeded", "wrong"],
+    "conclusion_contains": [
+      "payment_intent.succeeded"
+    ],
     "ruled_out_contains": [],
-    "answer_confidence_in": ["high", "medium"],
-    "no_conclusion": false
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false,
+    "conclusion_contains_any": [
+      [
+        "wrong",
+        "instead of",
+        "incorrect"
+      ]
+    ]
   }
 }

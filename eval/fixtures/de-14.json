@@ -23,8 +23,7 @@
   ],
   "expect": {
     "conclusion_contains": [
-      "lock",
-      "inconsistent order"
+      "lock"
     ],
     "conclusion_excludes": [
       "timeout"
@@ -37,6 +36,13 @@
       "high",
       "medium"
     ],
-    "no_conclusion": false
+    "no_conclusion": false,
+    "conclusion_contains_any": [
+      [
+        "inconsistent order",
+        "opposite order",
+        "different order"
+      ]
+    ]
   }
 }

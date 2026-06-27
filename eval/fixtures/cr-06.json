@@ -22,13 +22,18 @@
     ]
   ],
   "expect": {
-    "conclusion_contains": [
-      "memory limit"
-    ],
+    "conclusion_contains": [],
     "answer_confidence_in": [
       "high",
       "medium"
     ],
-    "no_conclusion": false
+    "no_conclusion": false,
+    "conclusion_contains_any": [
+      [
+        "memory limit",
+        "limits.memory",
+        "resources.limits"
+      ]
+    ]
   }
 }

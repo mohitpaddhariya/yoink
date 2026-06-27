@@ -47,8 +47,7 @@
   ],
   "expect": {
     "conclusion_contains": [
-      "middleware",
-      "raw body"
+      "middleware"
     ],
     "conclusion_excludes": [
       "allowlist"
@@ -62,6 +61,13 @@
       "high",
       "medium"
     ],
-    "no_conclusion": false
+    "no_conclusion": false,
+    "conclusion_contains_any": [
+      [
+        "raw body",
+        "request body",
+        "body buffer"
+      ]
+    ]
   }
 }

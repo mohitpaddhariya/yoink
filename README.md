@@ -104,9 +104,9 @@ uv run yoink-ask --all "staging" "how do I access the server?"
 asks you to pick.
 
 **Does it actually work?** Measured across 100 recall tasks: **0% dead-end leak** (never reports a
-ruled-out guess as the answer), **100%** on latest-decision recall, and it tells a *settled*
-conclusion from a *tentative hypothesis* instead of faking one. 85% overall; weakest at picking a
-session from a vague hint. See `benchmark/`.
+ruled-out guess as the answer), **100%** on latest-decision recall *and* on listing what was ruled
+out, and it tells a *settled* conclusion from a *tentative hypothesis* instead of faking one. 89%
+overall; weakest at picking a session from a vague hint. See `benchmark/`.
 
 **Is "cheaper" real?** Measured on real sessions, both ways. See `benchmark/`.
 

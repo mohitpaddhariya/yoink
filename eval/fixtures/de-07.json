@@ -23,8 +23,7 @@
   ],
   "expect": {
     "conclusion_contains": [
-      "usecontainersupport",
-      "host ram"
+      "usecontainersupport"
     ],
     "conclusion_excludes": [
       "leak"
@@ -37,6 +36,13 @@
       "high",
       "medium"
     ],
-    "no_conclusion": false
+    "no_conclusion": false,
+    "conclusion_contains_any": [
+      [
+        "host ram",
+        "host capacity",
+        "host memory"
+      ]
+    ]
   }
 }

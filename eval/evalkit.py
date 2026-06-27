@@ -89,6 +89,24 @@ def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"[^\w\s]", " ", text)).strip()
 
 
+def _mentions_as_ruled_out(answer: str, keyword: str) -> bool:
+    """True if ``keyword`` appears in *ruled-out / superseded* language rather than as the cause.
+
+    yoink is SUPPOSED to name abandoned paths — labelled as abandoned. So "connection pool was the
+    cause; postgres was ruled out" must not count as a postgres leak. Only a bare causal mention does.
+    """
+    a, k = _normalize(answer), re.escape(_normalize(keyword))
+    near = r".{0,80}"
+    patterns = [
+        rf"ruled out{near}\b{k}\b", rf"\b{k}\b{near}ruled out",
+        rf"ruling out{near}\b{k}\b", rf"\b{k}\b{near}(?:didn t|did not|does not) hold up",
+        rf"superseded{near}\b{k}\b", rf"\b{k}\b{near}superseded",
+        rf"(?:not|isn t|wasn t){near}\b{k}\b", rf"\b{k}\b{near}(?:not the cause|was not|wasn t)",
+        rf"initial(?:ly)?{near}\b{k}\b", rf"\b{k}\b{near}(?:abandoned|eliminated|rejected|discounted)",
+    ]
+    return any(re.search(p, a) for p in patterns)
+
+
 def grade(fixture: Fixture, result: RecallAnswer) -> tuple[bool, list[str]]:
     """Grade a parsed answer against the fixture's expectations.
 
@@ -103,13 +121,13 @@ def grade(fixture: Fixture, result: RecallAnswer) -> tuple[bool, list[str]]:
     answer = _normalize(result.answer)
     reasons: list[str] = []
 
-    # Anti-leak applies only when the model CLAIMED a conclusion. On the no_conclusion path the
-    # answer isn't asserting a cause, so naming a ruled-out term ("ruled out postgres") is correct,
-    # not a leak — penalising it was a false negative.
+    # Anti-leak fires only when the model CLAIMED a conclusion AND surfaced an excluded term AS the
+    # cause. On the no_conclusion path nothing is being asserted; on the settled path, naming a dead
+    # end in ruled-out/superseded language is correct product behaviour, not a leak.
     if not result.no_conclusion:
         for keyword in expect.get("conclusion_excludes", []):
-            if _normalize(keyword) in answer:
-                reasons.append(f"answer should not contain: {keyword!r}")
+            if _normalize(keyword) in answer and not _mentions_as_ruled_out(result.answer, keyword):
+                reasons.append(f"answer presents a ruled-out term as the cause: {keyword!r}")
 
     if "no_conclusion" in expect:
         if bool(expect["no_conclusion"]) != result.no_conclusion:
