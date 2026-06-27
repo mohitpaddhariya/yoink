@@ -15,3 +15,6 @@ dev = ["pytest>=8", "pytest-asyncio>=0.24"]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    "eval: live model-dependent integration test (needs YOINK_INTEGRATION=1 and the claude CLI)",
+]

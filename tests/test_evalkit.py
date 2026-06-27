@@ -7,7 +7,6 @@ from prompts import RecallAnswer
 def _fixture(**overrides) -> Fixture:
     base = dict(
         id="x",
-        scenario="s",
         question="q?",
         turns=[("user", "u"), ("assistant", "a")],
         expect={},
@@ -98,3 +97,16 @@ def test_grade_no_conclusion_expected():
     fixture = _fixture(expect={"no_conclusion": True})
     assert grade(fixture, RecallAnswer(answer="still open", no_conclusion=True))[0]
     assert not grade(fixture, RecallAnswer(answer="it is X", no_conclusion=False))[0]
+
+
+def test_grade_empty_expect_fails():
+    # A fixture that asserts nothing must not grade green.
+    passed, _ = grade(_fixture(expect={}), RecallAnswer(answer="literally anything"))
+    assert not passed
+
+
+def test_grade_no_conclusion_requires_none_confidence():
+    # no_conclusion=true must not ride alongside an invented confident answer.
+    fixture = _fixture(expect={"no_conclusion": True})
+    bad = RecallAnswer(answer="definitely the metrics leak", answer_confidence="high", no_conclusion=True)
+    assert not grade(fixture, bad)[0]

@@ -19,7 +19,6 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 @dataclass
 class Fixture:
     id: str
-    scenario: str
     question: str
     turns: list[tuple[str, str]]
     expect: dict
@@ -33,7 +32,6 @@ def load_fixtures(directory: Path = FIXTURES_DIR) -> list[Fixture]:
         fixtures.append(
             Fixture(
                 id=data.get("id", path.stem),
-                scenario=data.get("scenario", ""),
                 question=data["question"],
                 turns=[tuple(turn) for turn in data["turns"]],
                 expect=data.get("expect", {}),
@@ -59,28 +57,44 @@ def build_eval_prompt(fixture: Fixture) -> str:
     )
 
 
+_RECOGNIZED_EXPECT_KEYS = frozenset(
+    {"no_conclusion", "conclusion_contains", "conclusion_excludes", "ruled_out_contains", "answer_confidence_in"}
+)
+
+
 def grade(fixture: Fixture, result: RecallAnswer) -> tuple[bool, list[str]]:
     """Grade a parsed answer against the fixture's expectations.
 
-    Returns ``(passed, reasons)`` where ``reasons`` lists every failed expectation.
+    Returns ``(passed, reasons)`` where ``reasons`` lists every failed expectation. A
+    fixture with no recognized expectation keys fails loudly — silence must never grade
+    green, or a typo'd/empty expectation would assert nothing.
     """
     expect = fixture.expect
-    reasons: list[str] = []
-
-    if expect.get("no_conclusion"):
-        if not result.no_conclusion:
-            reasons.append("expected no_conclusion=true but a conclusion was given")
-        return (not reasons, reasons)
+    if not _RECOGNIZED_EXPECT_KEYS & set(expect):
+        return (False, ["fixture has no recognized expectations"])
 
     answer = result.answer.lower()
-    for keyword in expect.get("conclusion_contains", []):
-        if keyword.lower() not in answer:
-            reasons.append(f"answer missing conclusion keyword: {keyword!r}")
-    # A curated set of things the *conclusion* must not be (a different issue, a dead
-    # end). Distinct from ruled_out — naming a dead end in ruled_out is correct.
+    reasons: list[str] = []
+
+    # The anti-leak set always applies — even on the no_conclusion path, a result must
+    # never surface a curated forbidden conclusion.
     for keyword in expect.get("conclusion_excludes", []):
         if keyword.lower() in answer:
             reasons.append(f"answer should not contain: {keyword!r}")
+
+    if "no_conclusion" in expect:
+        if bool(expect["no_conclusion"]) != result.no_conclusion:
+            reasons.append(f"expected no_conclusion={bool(expect['no_conclusion'])}, got {result.no_conclusion}")
+        if expect["no_conclusion"]:
+            # Safe-failure gate: must be flagged none-confidence (never an invented
+            # confident conclusion).
+            if result.answer_confidence != "none":
+                reasons.append("no_conclusion result must have answer_confidence 'none'")
+            return (not reasons, reasons)
+
+    for keyword in expect.get("conclusion_contains", []):
+        if keyword.lower() not in answer:
+            reasons.append(f"answer missing conclusion keyword: {keyword!r}")
 
     ruled_blob = " ".join(result.ruled_out).lower()
     for keyword in expect.get("ruled_out_contains", []):
@@ -89,7 +103,5 @@ def grade(fixture: Fixture, result: RecallAnswer) -> tuple[bool, list[str]]:
 
     allowed = expect.get("answer_confidence_in")
     if allowed and result.answer_confidence not in allowed:
-        reasons.append(
-            f"answer_confidence {result.answer_confidence!r} not in {allowed}"
-        )
+        reasons.append(f"answer_confidence {result.answer_confidence!r} not in {allowed}")
     return (not reasons, reasons)
