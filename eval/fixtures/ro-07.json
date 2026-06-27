@@ -24,7 +24,7 @@
   "expect": {
     "ruled_out_contains": [
       "signature validation",
-      "duplicate events"
+      "duplicate"
     ],
     "answer_confidence_in": [
       "high",

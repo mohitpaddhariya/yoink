@@ -75,6 +75,24 @@ def test_topic_match_outranks_recency(projects_root, repo):
     assert res.candidates[0].session_id == "match"
 
 
+def test_v2_rare_token_and_phrase_pick_right_same_domain_session(projects_root, repo):
+    # Two redis sessions: the distinctive tokens (cpu, spike) + the exact phrase break the tie.
+    write_transcript(projects_root, "redis-cpu", repo, titles=[("ai", "redis cpu spike under load")])
+    write_transcript(projects_root, "redis-mem", repo, titles=[("ai", "redis memory eviction tuning")])
+    res = _resolve("the redis cpu spike", projects_root, repo)
+    assert res.candidates[0].session_id == "redis-cpu"
+    assert res.candidates[0].explain  # v2 reports why it matched
+
+
+def test_v2_body_signal_when_title_is_generic(projects_root, repo):
+    # The hint isn't in the title but is in a turn — v2 reads the body, so it still ranks.
+    write_transcript(projects_root, "match", repo, titles=[("ai", "investigation notes")],
+                     turns=[("user", "the stripe webhook signature verification keeps failing")])
+    write_transcript(projects_root, "other", repo, titles=[("ai", "unrelated cleanup")])
+    res = _resolve("stripe webhook", projects_root, repo)
+    assert res.candidates[0].session_id == "match"
+
+
 def test_recency_breaks_ties_on_equal_topic(projects_root, repo):
     write_transcript(projects_root, "older", repo, titles=[("ai", "auth login")], mtime=100)
     write_transcript(projects_root, "newer", repo, titles=[("ai", "auth login")], mtime=200)

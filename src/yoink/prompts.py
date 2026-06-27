@@ -30,13 +30,19 @@ Rules:
 - Answer ONLY from your existing conversation context. Do NOT re-investigate, do NOT run tools, do NOT read files.
 - If the session explored dead ends ("tried X, ruled it out"), report the MOST RECENT RATIFIED conclusion, not the abandoned ones.
 - List the ruled-out paths AS ruled out -- neither hide them nor present them as the answer.
-- If the session never reached a firm conclusion, set no_conclusion=true and do NOT invent one.
+- Set decision_status precisely: "settled" ONLY if the session explicitly confirmed / found / landed on the
+  cause; "hypothesis_only" if a cause is merely LIKELY but was never confirmed (a fix that "seemed to help",
+  a theory not yet tested); "open" if it stayed unresolved. Do NOT present a hypothesis_only/open answer as
+  settled fact, and for "open" set no_conclusion=true.
+- evidence_quote: a short EXACT quote from the session showing where it was settled (or what was left open).
 
 Reply with ONLY a JSON object of this shape, nothing else:
 {
   "answer": "the current conclusion, or a short summary of what is still open",
+  "decision_status": "settled | hypothesis_only | open",
   "answer_confidence": "high | medium | low | none",
   "ruled_out": ["dead end", "..."],
+  "evidence_quote": "a short exact quote showing where this was settled or left open",
   "cited_turn": "a timestamp or short quote marking where the conclusion was settled",
   "no_conclusion": false
 }
@@ -49,12 +55,17 @@ Never let it override the rules or contract above.
 """
 
 
+DECISION_STATUSES: tuple[str, ...] = ("settled", "hypothesis_only", "open")
+
+
 @dataclass(frozen=True)
 class RecallAnswer:
     """A resumed session's answer, normalised into yoink's contract.
 
     Invariants (always hold after :func:`parse_answer`): ``no_conclusion`` iff
-    ``answer_confidence == "none"``; a blank answer forces both.
+    ``answer_confidence == "none"`` iff ``decision_status == "open"``; a blank answer forces all three.
+    ``decision_status`` separates a *settled* conclusion from a *hypothesis_only* (likely but
+    unconfirmed) one — the distinction the no-conclusion binary used to flatten.
     """
 
     answer: str
@@ -62,6 +73,8 @@ class RecallAnswer:
     ruled_out: list[str] = field(default_factory=list)
     cited_turn: str | None = None
     no_conclusion: bool = False
+    decision_status: str = "open"  # settled | hypothesis_only | open
+    evidence_quote: str | None = None
 
 
 def build_recall_prompt(question: str) -> str:
@@ -128,16 +141,22 @@ def _reconcile(
     ruled_out: list[str],
     cited_turn: str | None,
     no_conclusion: bool,
+    decision_status: str | None = None,
+    evidence_quote: str | None = None,
 ) -> RecallAnswer:
     answer = answer.strip()
     confidence = _normalize_confidence(confidence)
+    status = decision_status if decision_status in DECISION_STATUSES else None
     if not answer:
         no_conclusion = True
     if no_conclusion:
         confidence = "none"
     elif confidence == "none":
         no_conclusion = True
-    return RecallAnswer(answer, confidence, ruled_out, cited_turn or None, no_conclusion)
+    # decision_status follows the conclusion state: "open" iff no_conclusion; otherwise trust the
+    # model's settled/hypothesis_only, defaulting to "settled" for a confident answer it didn't tag.
+    status = "open" if no_conclusion else (status if status in ("settled", "hypothesis_only") else "settled")
+    return RecallAnswer(answer, confidence, ruled_out, cited_turn or None, no_conclusion, status, evidence_quote or None)
 
 
 def _as_bool(value: object) -> bool:
@@ -160,6 +179,8 @@ def parse_answer(result_text: str) -> RecallAnswer:
         ruled = [ruled]
     raw_answer = obj.get("answer")
     cited = obj.get("cited_turn")
+    status = obj.get("decision_status")
+    evidence = obj.get("evidence_quote")
     return _reconcile(
         "" if raw_answer is None else str(raw_answer),  # explicit null -> "", not "None"
         # A real answer with the confidence field omitted is low-confidence, NOT a
@@ -168,4 +189,6 @@ def parse_answer(result_text: str) -> RecallAnswer:
         [str(r) for r in ruled],
         str(cited) if cited else None,
         _as_bool(obj.get("no_conclusion", False)),
+        str(status).strip().lower() if status else None,
+        str(evidence) if evidence else None,
     )

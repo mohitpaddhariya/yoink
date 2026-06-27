@@ -65,15 +65,19 @@ def _graded(fx, result_text: str) -> tuple[bool, bool, str]:
         contains = fx.expect.get("conclusion_contains", [])
         accuracy = bool(contains) and all(k.lower() in text for k in contains)
     leak = any(k.lower() in text for k in fx.expect.get("conclusion_excludes", []))
-    return bool(accuracy), leak, ans.answer
+    return bool(accuracy), leak, ans
 
 
 def _row(method, *, accuracy=False, leak=False, latency_ms=0.0, in_tok=0, out_tok=0, cache_tok=0,
-         cost=0.0, live_ctx=0, overflow=False, has_ex=False, answer="", errored=False) -> dict:
-    return {"method": method, "errored": errored, "accuracy": accuracy, "dead_end_leak": leak,
-            "has_excludes": has_ex, "latency_ms": latency_ms, "input_tokens": in_tok,
+         cost=0.0, live_ctx=0, overflow=False, has_ex=False, answer="", errored=False,
+         retrieval_only=False, confidence="", ruled_out=None, no_conclusion=False, raw_result="") -> dict:
+    return {"method": method, "errored": errored, "accuracy": accuracy, "retrieval_only": retrieval_only,
+            "dead_end_leak": leak, "has_excludes": has_ex, "latency_ms": latency_ms, "input_tokens": in_tok,
             "output_tokens": out_tok, "cache_tokens": cache_tok, "cost_usd": cost or 0.0,
-            "live_context_tokens": live_ctx, "overflow": overflow, "answer": answer[:200]}
+            "live_context_tokens": live_ctx, "overflow": overflow,
+            # audit fields (#7): the parsed answer + raw model output, so any row can be inspected
+            "answer": answer[:300], "confidence": confidence, "ruled_out": ruled_out or [],
+            "no_conclusion": no_conclusion, "raw_result": (raw_result or "")[:600]}
 
 
 def _model_row(method, run, fx, *, live_ctx, overflow=False) -> dict:
@@ -83,12 +87,14 @@ def _model_row(method, run, fx, *, live_ctx, overflow=False) -> dict:
     if run.returncode != 0 or not m or m.get("is_error"):
         return _row(method, errored=True, latency_ms=run.latency_ms,
                     has_ex=bool(fx.expect.get("conclusion_excludes")))
-    passed, leak, answer = _graded(fx, m.get("result_text"))
+    passed, leak, ans = _graded(fx, m.get("result_text"))
     return _row(method, accuracy=passed, leak=leak, latency_ms=run.latency_ms,
                 in_tok=m["input_tokens"], out_tok=m["output_tokens"],
                 cache_tok=m["cache_read_tokens"] + m["cache_creation_tokens"], cost=m["cost_usd"],
                 live_ctx=live_ctx(m), overflow=overflow,
-                has_ex=bool(fx.expect.get("conclusion_excludes")), answer=answer)
+                has_ex=bool(fx.expect.get("conclusion_excludes")), answer=ans.answer,
+                confidence=ans.answer_confidence, ruled_out=ans.ruled_out, no_conclusion=ans.no_conclusion,
+                raw_result=m.get("result_text") or "")
 
 
 def bl_grep(fx, ref) -> dict:
@@ -98,16 +104,20 @@ def bl_grep(fx, ref) -> dict:
     base = [GREP, "-i", "-F"] + (["--no-filename"] if GREP == "rg" else [])  # grep on one file prints none
     run = usage.measure([*base, *pattern_args, str(path)])
     matches = run.stdout.lower()
-    gold = bool(fx.expect.get("conclusion_contains")) and all(
+    # NOTE: grep does not answer — this is "evidence containment": the gold keyword appears SOMEWHERE
+    # in the returned match set (which you still have to read). Reported as retrieval_only, never
+    # compared head-to-head with the other methods' answer accuracy.
+    evidence_contains_answer = bool(fx.expect.get("conclusion_contains")) and all(
         k.lower() in matches for k in fx.expect.get("conclusion_contains", []))
     leak = any(k.lower() in matches for k in fx.expect.get("conclusion_excludes", []))
-    # grep loads nothing into your live context except the lines you eyeball:
-    return _row("grep", accuracy=gold, leak=leak, latency_ms=run.latency_ms,
-                live_ctx=usage.count_tokens(run.stdout), has_ex=bool(fx.expect.get("conclusion_excludes")))
+    return _row("grep", accuracy=evidence_contains_answer, leak=leak, latency_ms=run.latency_ms,
+                live_ctx=usage.count_tokens(run.stdout), has_ex=bool(fx.expect.get("conclusion_excludes")),
+                retrieval_only=True)
 
 
 def bl_full_transcript(fx, ref) -> dict:
-    text = _transcript_text(fx)
+    # the ACTUAL built session transcript (what yoink/native resume), not just the fixture user turns:
+    text = sessions.transcript_text(ref["session_id"]) or _transcript_text(fx)
     prompt = (f"<transcript>\n{text}\n</transcript>\n\n"
               f"Based only on the transcript above, answer concisely: {fx.question}")
     run = usage.measure(["claude", "-p", "--model", OPUS, "--permission-mode", "plan",
@@ -121,9 +131,11 @@ def bl_full_transcript(fx, ref) -> dict:
 
 def bl_native_resume(fx, ref) -> dict:
     # --fork-session: isolate AND never mutate the shared session that yoink also reads.
+    # --tools "": tool-disabled like yoink (can't re-investigate); question via stdin so greedy --tools
+    # doesn't swallow it.
     run = usage.measure(["claude", "-p", "--resume", ref["session_id"], "--fork-session", "--model", OPUS,
-                         "--permission-mode", "plan", "--output-format", "json", fx.question],
-                        cwd=ref["cwd"], timeout=900)
+                         "--permission-mode", "plan", "--output-format", "json", "--tools", ""],
+                        input=fx.question, cwd=ref["cwd"], timeout=900)
     # resuming it yourself loads the ENTIRE transcript into your context — fresh input PLUS the
     # cache-resident transcript (most of it counts as cached, not fresh input):
     return _model_row("native-resume", run, fx,
@@ -158,6 +170,7 @@ def _aggregate(rows: list[dict]) -> dict:
         out[method] = {
             "n": len(rs),
             "accuracy": sum(r["accuracy"] for r in rs) / len(rs),
+            "retrieval_only": any(r.get("retrieval_only") for r in rs),  # grep: "accuracy" = evidence containment
             "dead_end_rate": (sum(r["dead_end_leak"] for r in with_ex) / len(with_ex)) if with_ex else None,
             "p50_latency_ms": statistics.median(lats),
             "p95_latency_ms": lats[min(len(lats) - 1, int(0.95 * len(lats)))],
@@ -174,15 +187,18 @@ _ORDER = ["grep", "full-transcript", "native-resume", "yoink"]
 
 
 def _print_table(agg: dict) -> None:
-    print(f"\n{'method':<16}{'acc':>6}{'p50 ms':>9}{'tok/q':>9}{'cost/q':>10}{'live-ctx':>10}{'overflow':>10}")
-    print("-" * 74)
+    print(f"\n{'method':<16}{'acc':>7}{'p50 ms':>9}{'tok/q':>9}{'cost/q':>10}{'live-ctx':>10}{'overflow':>10}")
+    print("-" * 75)
     for method in _ORDER:
         m = agg.get(method)
         if not m:
             continue
-        print(f"{method:<16}{m['accuracy']*100:>5.0f}%{m['p50_latency_ms']:>9.0f}"
+        # grep does not answer; its "accuracy" is evidence containment, marked * (not comparable)
+        acc = f"{m['accuracy']*100:.0f}%" + ("*" if m.get("retrieval_only") else " ")
+        print(f"{method:<16}{acc:>7}{m['p50_latency_ms']:>9.0f}"
               f"{m['mean_tokens']:>9.0f}{'$'+format(m['mean_cost_usd'],'.4f'):>10}"
               f"{m['mean_live_context']:>10.0f}{m['overflow_rate']*100:>9.0f}%")
+    print("* grep returns matching lines, not an answer — 'acc' = gold keyword present in match set.")
 
 
 def main(argv: list[str]) -> int:

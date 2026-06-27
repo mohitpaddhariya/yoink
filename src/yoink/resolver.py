@@ -25,10 +25,16 @@ def default_projects_root() -> Path:
 
 
 # Ranking weights / thresholds — pinned so source_match labels stay deterministic.
-TITLE_W = 3.0
+# v2 scoring is additive (notes' formula): title-token hits dominate, then project (cwd) hits, an
+# exact-phrase bonus, a bonus for RARE hint tokens (discriminative across the candidate set), and a
+# light body-token signal. Rare/phrase/project bonuses only *add*, so the simple title cases still rank.
+TITLE_W = 4.0
 BODY_W = 1.0
-HIGH_MIN = 2.0
-HIGH_MARGIN = 1.5
+PROJECT_W = 3.0
+RARE_W = 2.0
+PHRASE_W = 3.0
+HIGH_MIN = 4.0
+HIGH_MARGIN = 4.0
 HEAD_BYTES = 16_384
 TAIL_BYTES = 32_768
 
@@ -48,6 +54,7 @@ class Candidate:
     title: str
     mtime: float
     score: float = 0.0
+    explain: str = ""  # why it matched the hint (title/project/phrase/rare-token), for --explain-source
 
 
 @dataclass(frozen=True)
@@ -124,7 +131,7 @@ class _Meta:
     mtime: float
     cwd: str | None
     title: str
-    last_text: str
+    body: str  # all user+assistant text seen in the bounded read (v2: more signal than last_text)
     is_fork: bool
 
 
@@ -138,7 +145,7 @@ def _read_meta(path: Path) -> _Meta | None:
         return None
     cwd = None
     ai_title = custom_title = first_user = None
-    last_text = ""
+    body_parts: list[str] = []
     is_fork = False
     for record in objs:
         kind = record.get("type")
@@ -150,22 +157,22 @@ def _read_meta(path: Path) -> _Meta | None:
                 continue
             if _FORK_MARKER in text:
                 is_fork = True
-            if kind == "assistant":
-                last_text = text
-            elif first_user is None:
+            body_parts.append(text)
+            if first_user is None and kind == "user":
                 first_user = text
         elif kind == "ai-title":
             ai_title = record.get("aiTitle") or ai_title
         elif kind == "custom-title":
             custom_title = record.get("customTitle") or custom_title
+    body = " ".join(body_parts)
     title = (
         custom_title
         or ai_title
         or (first_user[:80] if first_user else None)
-        or (last_text[:80] if last_text else None)
+        or (body[:80] if body else None)
         or "(untitled)"
     )
-    return _Meta(path.stem, mtime, cwd, title, last_text, is_fork)
+    return _Meta(path.stem, mtime, cwd, title, body, is_fork)
 
 
 def _candidate_dirs(projects_root: Path, caller_cwd: str, cross_project: bool) -> list[Path]:
@@ -188,12 +195,37 @@ def _iter_session_files(dirs: list[Path]):
                 yield path
 
 
-def _score(meta: _Meta, hint_tokens: set[str]) -> float:
+def _project_tokens(cwd: str | None) -> set[str]:
+    return _tokenize(cwd or "")
+
+
+def _normalize_phrase(text: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]", " ", (text or "").lower())).strip()
+
+
+def _score(meta: _Meta, hint_tokens: set[str], hint_phrase: str, rare_hint: set[str]) -> tuple[float, str]:
+    """Additive v2 score + a short human explanation of why it matched."""
     if not hint_tokens:
-        return 0.0
-    title_hits = len(hint_tokens & _tokenize(meta.title))
-    body_hits = len(hint_tokens & _tokenize(meta.last_text))
-    return TITLE_W * title_hits + BODY_W * body_hits
+        return 0.0, ""
+    title_t, body_t, proj_t = _tokenize(meta.title), _tokenize(meta.body), _project_tokens(meta.cwd)
+    title_hits, body_hits, proj_hits = hint_tokens & title_t, hint_tokens & body_t, hint_tokens & proj_t
+    rare_hits = rare_hint & (title_t | body_t | proj_t)
+    score = TITLE_W * len(title_hits) + BODY_W * len(body_hits) + PROJECT_W * len(proj_hits) + RARE_W * len(rare_hits)
+    phrase_hit = bool(hint_phrase) and (hint_phrase in _normalize_phrase(meta.title) or hint_phrase in _normalize_phrase(meta.body))
+    if phrase_hit:
+        score += PHRASE_W
+    why = []
+    if title_hits:
+        why.append(f"title matched {sorted(title_hits)}")
+    if phrase_hit:
+        why.append(f'phrase "{hint_phrase}" present')
+    if proj_hits:
+        why.append(f"project matched {sorted(proj_hits)}")
+    if rare_hits:
+        why.append(f"distinctive term {sorted(rare_hits)}")
+    if body_hits and not title_hits:
+        why.append(f"recent turn mentioned {sorted(body_hits)}")
+    return score, "; ".join(why)
 
 
 def _classify(ranked: list[Candidate], hint_tokens: set[str], top_n: int) -> ResolveResult:
@@ -220,26 +252,35 @@ def resolve(
     """Find and rank candidate sessions for ``peer_hint``. Never raises on bad data."""
     projects_root = Path(projects_root) if projects_root is not None else default_projects_root()
     hint_tokens = _tokenize(peer_hint or "")
+    hint_phrase = _normalize_phrase(peer_hint or "")
+    hint_phrase = hint_phrase if len(hint_phrase.split()) >= 2 else ""  # phrase bonus needs a multi-word hint
     dirs = _candidate_dirs(projects_root, caller_cwd, cross_project)
-    candidates: list[Candidate] = []
+
+    valid: list[tuple[_Meta, str]] = []  # pass 1: collect the resolvable candidates
     for path in _iter_session_files(dirs):
         meta = _read_meta(path)
-        if meta is None:
+        if meta is None or meta.is_fork:
             continue
         if caller_session_id and meta.session_id == caller_session_id:
             continue
-        if meta.is_fork:
-            continue
         cwd = meta.cwd
         if cwd is None:
-            if path.parent.name == cwd_to_slug(caller_cwd):
-                cwd = caller_cwd
-            else:
-                continue
-        if not os.path.isdir(cwd):  # cwd-hijack guard: never steer the answerer into a bad dir
+            cwd = caller_cwd if path.parent.name == cwd_to_slug(caller_cwd) else None
+        if cwd is None or not os.path.isdir(cwd):  # cwd-hijack guard: never steer into a bad dir
             continue
-        candidates.append(
-            Candidate(meta.session_id, cwd, meta.title, meta.mtime, _score(meta, hint_tokens))
-        )
+        valid.append((meta, cwd))
+
+    # rare-token weighting: a hint token is discriminative if it appears in FEW candidate sessions
+    df: dict[str, int] = {}
+    for meta, _cwd in valid:
+        for token in _tokenize(meta.title) | _tokenize(meta.body) | _project_tokens(meta.cwd):
+            df[token] = df.get(token, 0) + 1
+    rare_threshold = max(1, len(valid) // 5)
+    rare_hint = {t for t in hint_tokens if 0 < df.get(t, 0) <= rare_threshold}
+
+    candidates: list[Candidate] = []  # pass 2: score with title/project/phrase/rare bonuses
+    for meta, cwd in valid:
+        score, why = _score(meta, hint_tokens, hint_phrase, rare_hint)
+        candidates.append(Candidate(meta.session_id, cwd, meta.title, meta.mtime, score, why))
     ranked = sorted(candidates, key=lambda c: (-c.score, -c.mtime, c.session_id))
     return _classify(ranked, hint_tokens, top_n)

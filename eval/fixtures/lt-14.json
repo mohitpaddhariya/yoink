@@ -4,23 +4,68 @@
   "session_hint": "the cron job double-execution and duplicate invoice investigation",
   "question": "What did we conclude was causing the cron job to execute twice and generate duplicate invoices?",
   "turns": [
-    ["user", "Our nightly invoice generation cron is producing duplicate invoices. Two identical invoice records per customer, 12 hours apart... wait, no — same timestamp. Both running at exactly 02:00 UTC. Started when we scaled from one to two app servers last sprint."],
-    ["user", "Checked timezone configuration on both servers: both are set to UTC, confirmed via timedatectl. The cron expression '0 2 * * *' is in UTC. No timezone mismatch."],
-    ["user", "Reviewed the cron expression syntax carefully: '0 2 * * *' — fires at minute 0, hour 2, every day. Syntactically correct."],
-    ["user", "Considered job queue depth: we don't use a job queue for this cron. It's a plain crontab entry that shells out to a Python script. No queue involved."],
-    ["user", "Root cause: the cron job is defined in /etc/cron.d/invoice-gen and both app servers have identical crontabs installed via our Ansible playbook. At 02:00 both servers fire the job simultaneously with no coordination mechanism — no distributed lock, no leader election, no database semaphore. Two processes run the same invoice script at the same time on different servers."],
-    ["user", "Confirmed by checking timestamps in the invoice table: duplicate pairs have creation timestamps within 200ms of each other, consistent with two servers starting simultaneously, not a retry or re-run."],
-    ["user", "Two fix approaches: (1) add a Redis-based distributed lock using SETNX with a TTL, (2) designate one server as the cron host and remove crontab from the others."],
-    ["user", "Went with the dedicated cron server approach — simpler and removes the risk of the lock failing. Removed crontab from both app servers and added it to the ops-jobs server that already exists for batch work."],
-    ["user", "Timezone config and cron expression syntax were both correct all along. Job queue depth is irrelevant since there is no queue."],
-    ["user", "Added a database-level unique constraint on (billing_period, customer_id) in the invoices table as a safety net against any future double-execution."],
-    ["user", "Cleaned up the duplicate invoices with a migration script. Verified no billing impact — payment processing had already deduped on the Stripe side. Incident closed."]
+    [
+      "user",
+      "Our nightly invoice generation cron is producing duplicate invoices. Two identical invoice records per customer, 12 hours apart... wait, no — same timestamp. Both running at exactly 02:00 UTC. Started when we scaled from one to two app servers last sprint."
+    ],
+    [
+      "user",
+      "Checked timezone configuration on both servers: both are set to UTC, confirmed via timedatectl. The cron expression '0 2 * * *' is in UTC. No timezone mismatch."
+    ],
+    [
+      "user",
+      "Reviewed the cron expression syntax carefully: '0 2 * * *' — fires at minute 0, hour 2, every day. Syntactically correct."
+    ],
+    [
+      "user",
+      "Considered job queue depth: we don't use a job queue for this cron. It's a plain crontab entry that shells out to a Python script. No queue involved."
+    ],
+    [
+      "user",
+      "Root cause: the cron job is defined in /etc/cron.d/invoice-gen and both app servers have identical crontabs installed via our Ansible playbook. At 02:00 both servers fire the job simultaneously with no coordination mechanism — no distributed lock, no leader election, no database semaphore. Two processes run the same invoice script at the same time on different servers."
+    ],
+    [
+      "user",
+      "Confirmed by checking timestamps in the invoice table: duplicate pairs have creation timestamps within 200ms of each other, consistent with two servers starting simultaneously, not a retry or re-run."
+    ],
+    [
+      "user",
+      "Two fix approaches: (1) add a Redis-based distributed lock using SETNX with a TTL, (2) designate one server as the cron host and remove crontab from the others."
+    ],
+    [
+      "user",
+      "Went with the dedicated cron server approach — simpler and removes the risk of the lock failing. Removed crontab from both app servers and added it to the ops-jobs server that already exists for batch work."
+    ],
+    [
+      "user",
+      "Timezone config and cron expression syntax were both correct all along. Job queue depth is irrelevant since there is no queue."
+    ],
+    [
+      "user",
+      "Added a database-level unique constraint on (billing_period, customer_id) in the invoices table as a safety net against any future double-execution."
+    ],
+    [
+      "user",
+      "Cleaned up the duplicate invoices with a migration script. Verified no billing impact — payment processing had already deduped on the Stripe side. Incident closed."
+    ]
   ],
   "expect": {
-    "conclusion_contains": ["both app servers", "no distributed lock"],
-    "conclusion_excludes": ["timezone"],
-    "ruled_out_contains": ["timezone", "cron expression", "queue"],
-    "answer_confidence_in": ["high", "medium"],
+    "conclusion_contains": [
+      "both app servers",
+      "no distributed lock"
+    ],
+    "conclusion_excludes": [
+      "timezone"
+    ],
+    "ruled_out_contains": [
+      "timezone",
+      "cron syntax",
+      "queue"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
     "no_conclusion": false
   }
 }

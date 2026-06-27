@@ -63,8 +63,8 @@
     ],
     "ruled_out_contains": [
       "disk",
-      "partition count",
-      "garbage"
+      "partition",
+      "gc"
     ],
     "answer_confidence_in": [
       "high",

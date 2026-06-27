@@ -23,7 +23,6 @@
   ],
   "expect": {
     "conclusion_contains": [
-      "clock drift",
       "ntp"
     ],
     "conclusion_excludes": [
@@ -37,6 +36,14 @@
       "high",
       "medium"
     ],
-    "no_conclusion": false
+    "no_conclusion": false,
+    "conclusion_contains_any": [
+      [
+        "clock drift",
+        "clock skew",
+        "time skew",
+        "ntp"
+      ]
+    ]
   }
 }

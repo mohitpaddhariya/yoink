@@ -39,8 +39,9 @@ def _issues(fx) -> list[str]:
             if ex in con or con in ex:
                 out.append(f"conclusion_excludes {ex!r} overlaps conclusion_contains {con!r}")
     if fx.category == "abstention":
-        if not expect.get("no_conclusion"):
-            out.append("abstention fixture must set no_conclusion=true")
+        # true_abstention sets no_conclusion=true; tentative_hypothesis sets decision_status_in
+        if not (expect.get("no_conclusion") or expect.get("decision_status_in")):
+            out.append("abstention fixture must set no_conclusion=true or decision_status_in")
         if contains:
             out.append("abstention fixture must NOT set conclusion_contains")
     if fx.category == "session_resolution" and not fx.session_hint:

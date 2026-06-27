@@ -26,6 +26,6 @@
     ]
   ],
   "expect": {
-    "no_conclusion": true
+    "decision_status_in": ["hypothesis_only", "open"]
   }
 }

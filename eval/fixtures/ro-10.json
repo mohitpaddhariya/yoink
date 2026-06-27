@@ -24,7 +24,7 @@
   "expect": {
     "ruled_out_contains": [
       "certificate chain",
-      "certificate expiry"
+      "expiry"
     ],
     "answer_confidence_in": [
       "high",

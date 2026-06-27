@@ -50,12 +50,12 @@ separate, cheap step and hands back a paragraph.
 
 | The other session is… | Read it yourself | yoink |
 |---|---|---|
-| small (~5K) | $0.17 | **$0.04** |
+| small (~5K) | $0.18 | **$0.04** |
 | medium (~25K) | $0.49 | **$0.08** |
-| big (~100K) | $1.69 | **$0.23** |
+| big (~100K) | $1.70 | **$0.23** |
 | huge (>1M) | won't fit | **just works** |
 
-<sub>"Read it yourself" = a model reads the whole transcript (Opus) to answer; "yoink" = the Haiku recall. Measured `total_cost_usd`, both. yoink also hands back ~700 tokens instead of the whole transcript.</sub>
+<sub>"Read it yourself" = a model reads the whole transcript (Opus) to answer; "yoink" = the Haiku recall. Measured `total_cost_usd`, both. yoink also hands back ~900 tokens instead of the whole transcript.</sub>
 
 ## How it works
 
@@ -102,8 +102,10 @@ uv run yoink-ask --all "staging" "how do I access the server?"
 **What if it grabs the wrong session?** It tells you which one it used; if your hint is ambiguous it
 asks you to pick.
 
-**Does it actually work?** Across 100 recall tasks, yoink never once reported a ruled-out dead end as
-the answer, and never invented a conclusion when a session hadn't reached one. See `benchmark/`.
+**Does it actually work?** Measured across 100 recall tasks: **0% dead-end leak** (never reports a
+ruled-out guess as the answer), **100%** on latest-decision recall, and it tells a *settled*
+conclusion from a *tentative hypothesis* instead of faking one. 85% overall; weakest at picking a
+session from a vague hint. See `benchmark/`.
 
 **Is "cheaper" real?** Measured on real sessions, both ways. See `benchmark/`.
 

@@ -11,6 +11,6 @@
     ["user", "The migration is sitting in a PR. Prod deploy is blocked by a code freeze until Monday. The TOCTOU theory is the best explanation we have but it's entirely unverified — we haven't confirmed it's actually what's happening, just that it's plausible given the timing."]
   ],
   "expect": {
-    "no_conclusion": true
+    "decision_status_in": ["hypothesis_only", "open"]
   }
 }

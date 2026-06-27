@@ -8,6 +8,7 @@ dead ends? Grading here is deterministic and offline; the real model call lives 
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -73,29 +74,39 @@ def build_eval_prompt(fixture: Fixture) -> str:
     )
 
 
-_RECOGNIZED_EXPECT_KEYS = frozenset(
-    {"no_conclusion", "conclusion_contains", "conclusion_excludes", "ruled_out_contains", "answer_confidence_in"}
-)
+_RECOGNIZED_EXPECT_KEYS = frozenset({
+    "no_conclusion", "conclusion_contains", "conclusion_contains_any",
+    "conclusion_excludes", "ruled_out_contains", "answer_confidence_in", "decision_status_in",
+})
+
+
+def _normalize(text: str) -> str:
+    """Fold the differences that make exact-substring grading brittle: case, hyphens/underscores,
+    and punctuation. ``"60-second."`` and ``"60 seconds"`` both normalize toward ``"60 second…"``.
+    Phrasing synonyms (clock drift vs skew) are NOT folded — those need ``conclusion_contains_any``.
+    """
+    text = text.lower().replace("-", " ").replace("_", " ")
+    return re.sub(r"\s+", " ", re.sub(r"[^\w\s]", " ", text)).strip()
 
 
 def grade(fixture: Fixture, result: RecallAnswer) -> tuple[bool, list[str]]:
     """Grade a parsed answer against the fixture's expectations.
 
-    Returns ``(passed, reasons)`` where ``reasons`` lists every failed expectation. A
-    fixture with no recognized expectation keys fails loudly — silence must never grade
-    green, or a typo'd/empty expectation would assert nothing.
+    Substring match after light normalization (so ``"60-second"`` satisfies ``"60 seconds"``).
+    ``conclusion_contains_any`` takes alias GROUPS — each group passes if ANY of its synonyms
+    appears. Returns ``(passed, reasons)``; a fixture with no recognized keys fails loudly.
     """
     expect = fixture.expect
     if not _RECOGNIZED_EXPECT_KEYS & set(expect):
         return (False, ["fixture has no recognized expectations"])
 
-    answer = result.answer.lower()
+    answer = _normalize(result.answer)
     reasons: list[str] = []
 
     # The anti-leak set always applies — even on the no_conclusion path, a result must
     # never surface a curated forbidden conclusion.
     for keyword in expect.get("conclusion_excludes", []):
-        if keyword.lower() in answer:
+        if _normalize(keyword) in answer:
             reasons.append(f"answer should not contain: {keyword!r}")
 
     if "no_conclusion" in expect:
@@ -109,15 +120,25 @@ def grade(fixture: Fixture, result: RecallAnswer) -> tuple[bool, list[str]]:
             return (not reasons, reasons)
 
     for keyword in expect.get("conclusion_contains", []):
-        if keyword.lower() not in answer:
+        if _normalize(keyword) not in answer:
             reasons.append(f"answer missing conclusion keyword: {keyword!r}")
 
-    ruled_blob = " ".join(result.ruled_out).lower()
+    for group in expect.get("conclusion_contains_any", []):  # alias group: any synonym counts
+        if not any(_normalize(alias) in answer for alias in group):
+            reasons.append(f"answer missing any alias of: {group!r}")
+
+    ruled_blob = _normalize(" ".join(result.ruled_out))
     for keyword in expect.get("ruled_out_contains", []):
-        if keyword.lower() not in ruled_blob:
+        if _normalize(keyword) not in ruled_blob:
             reasons.append(f"ruled_out missing: {keyword!r}")
 
     allowed = expect.get("answer_confidence_in")
     if allowed and result.answer_confidence not in allowed:
         reasons.append(f"answer_confidence {result.answer_confidence!r} not in {allowed}")
+
+    # tentative-hypothesis fixtures pass if the model flags the answer as not-settled (or abstains),
+    # and fail only if it over-claims "settled" on an unconfirmed cause.
+    allowed_status = expect.get("decision_status_in")
+    if allowed_status and result.decision_status not in allowed_status:
+        reasons.append(f"decision_status {result.decision_status!r} not in {allowed_status}")
     return (not reasons, reasons)

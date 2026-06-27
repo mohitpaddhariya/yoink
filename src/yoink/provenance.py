@@ -91,6 +91,8 @@ def format_provenance(
         _oneliner(candidate, source_match, answer.answer_confidence, now),
         f"Answer: {answer.answer.strip()}",
     ]
+    if answer.decision_status == "hypothesis_only":
+        lines.append("Note: this was a hypothesis the session raised, not a confirmed conclusion.")
     if answer.ruled_out:
         lines.append(f"Ruled out: {_summarize(answer.ruled_out)}")
     if source_match.lower() == "medium":

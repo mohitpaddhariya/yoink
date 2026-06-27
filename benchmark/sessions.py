@@ -45,6 +45,29 @@ def _transcript_path(session_id: str) -> Path:
     return resolver.default_projects_root() / resolver.cwd_to_slug(str(BENCH_CWD)) / f"{session_id}.jsonl"
 
 
+def transcript_text(session_id: str) -> str:
+    """The REAL built session transcript (user + assistant text), parsed defensively from its JSONL —
+    the same content yoink/native actually resume, so the full-transcript baseline is priced on it
+    rather than on the fixture's user turns alone. Reuses resolver's message extraction."""
+    path = _transcript_path(session_id)
+    if not path.exists():
+        return ""
+    out = []
+    for line in path.read_text(errors="replace").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(obj, dict) and obj.get("type") in ("user", "assistant"):
+            text = resolver._message_text(obj)
+            if text:
+                out.append(f"[{obj['type']}] {text}")
+    return "\n".join(out)
+
+
 def _claude_turn(prompt: str, *, resume: str | None, model: str, timeout: float = 600) -> dict:
     cmd = ["claude", "-p"]
     if resume:
@@ -147,13 +170,31 @@ def build_all(fixtures, *, tracker=None, model: str = BUILD_MODEL, max_workers: 
 
 # --- Track C: conclusion-in-haystack generator -------------------------------------------
 
+def _conclusion_lines(conclusion: str, deadend: str, topic: str, difficulty: str) -> list[str]:
+    """How clearly the conclusion is stated — the knob the real-vs-toy difficulty rides on.
+
+    easy:   an explicit ``FINAL CONCLUSION:`` marker a search could grep.
+    medium: natural prose ("we confirmed the root cause is …") — no marker.
+    hard:   implied across two turns with a correction off a dead end, no marker, no "conclusion" word.
+    """
+    if difficulty == "easy":
+        return [f"FINAL CONCLUSION: the cause of {topic} is {conclusion}."]
+    if difficulty == "medium":
+        return [f"After more digging we confirmed the root cause is {conclusion}."]
+    return [  # hard
+        f"Spent a while convinced it was {deadend}, but that didn't hold up under load.",
+        f"Once we instrumented it properly the real culprit was {conclusion} — patched that and the noise stopped.",
+    ]
+
+
 def make_haystack(
     *, fixture_id: str, question: str, target_tokens: int, position: str = "end",
     distractors: int = 10, conclusion: str | None = None, deadend: str = "postgres",
     superseded: str | None = None, topic: str = "the intermittent post-deploy auth failures",
+    difficulty: str = "easy",
 ):
     """A fixture-like object whose ONE big user turn buries the evidence among ~``target_tokens``
-    of distractor chatter. position ∈ {start,mid,end}. Variants:
+    of distractor chatter. position ∈ {start,mid,end}, difficulty ∈ {easy,medium,hard}. Variants:
       - normal: ``conclusion`` set → expect that, excluding ``deadend``.
       - update: ``superseded`` set → an early decision overwritten by ``conclusion`` (recency test).
       - unanswerable: ``conclusion=None`` → no decision; expect abstention, ``deadend`` floated only.
@@ -169,7 +210,7 @@ def make_haystack(
     if superseded:
         body = [f"Early on I concluded the cause of {topic} was {superseded}."] + body
     cut = {"start": 0, "mid": len(body) // 2, "end": len(body)}.get(position, len(body))
-    concl_lines = [f"FINAL CONCLUSION: the cause of {topic} is {conclusion}."] if conclusion else []
+    concl_lines = _conclusion_lines(conclusion, deadend, topic, difficulty) if conclusion else []
     lines = body[:cut] + concl_lines + body[cut:]
     big_turn = f"Here are my full working notes on {topic}. Read them as your own prior context:\n\n" + "\n".join(lines)
 

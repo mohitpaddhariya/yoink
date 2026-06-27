@@ -56,7 +56,7 @@
     "ruled_out_contains": [
       "serialization",
       "mTLS",
-      "load balancer timeout"
+      "idle timeout"
     ],
     "answer_confidence_in": [
       "high",

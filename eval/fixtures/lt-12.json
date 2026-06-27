@@ -67,7 +67,7 @@
     ],
     "ruled_out_contains": [
       "browser connection limits",
-      "SSL",
+      "tls",
       "renegotiation"
     ],
     "answer_confidence_in": [

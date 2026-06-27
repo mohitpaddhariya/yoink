@@ -4,22 +4,70 @@
   "session_hint": "the S3 upload AccessDenied failure investigation",
   "question": "What was the root cause of the S3 upload failures?",
   "turns": [
-    ["user", "S3 uploads failing with AccessDenied errors specifically for the prefix s3://prod-assets/user-uploads/. Uploads to other prefixes like s3://prod-assets/static/ work fine."],
-    ["user", "Checked the S3 bucket policy first — it grants s3:PutObject on arn:aws:s3:::prod-assets/*. That should cover all prefixes including user-uploads/. Bucket policy looks permissive enough."],
-    ["user", "Investigated VPC endpoint routing: the EC2 instances don't use a VPC endpoint for S3, they go direct over the internet gateway. No routing misconfiguration. Ruled out."],
-    ["user", "Request timeout ruled out immediately — the error is an instant AccessDenied HTTP 403, not a timeout. The request reaches S3 and is evaluated."],
-    ["user", "Root cause found: the EC2 instance IAM role (app-server-role) has an explicit Deny statement added last Wednesday for s3:PutObject on arn:aws:s3:::prod-assets/user-uploads/*. An explicit IAM Deny always overrides any Allow, including the bucket policy Allow. The Deny was intended to restrict a different service but was accidentally attached to the wrong role."],
-    ["user", "This is a classic IAM evaluation order issue: explicit Deny wins over any Allow regardless of source. The bucket policy Allow is irrelevant while the role has an explicit Deny."],
-    ["user", "Fix: remove the explicit Deny from app-server-role. The Deny should have been added to the analytics-role instead."],
-    ["user", "Applied the IAM policy change. S3 uploads to user-uploads/ succeed immediately. Confirmed correct prefix isolation on analytics-role."],
-    ["user", "Bucket policy was correctly permissive throughout — it was never the issue. VPC endpoint was irrelevant."],
-    ["user", "Added IAM policy analysis step to our change-management checklist and integrated AWS IAM Access Analyzer into the CI pipeline to flag overly broad Deny statements. Incident closed."]
+    [
+      "user",
+      "S3 uploads failing with AccessDenied errors specifically for the prefix s3://prod-assets/user-uploads/. Uploads to other prefixes like s3://prod-assets/static/ work fine."
+    ],
+    [
+      "user",
+      "Checked the S3 bucket policy first — it grants s3:PutObject on arn:aws:s3:::prod-assets/*. That should cover all prefixes including user-uploads/. Bucket policy looks permissive enough."
+    ],
+    [
+      "user",
+      "Investigated VPC endpoint routing: the EC2 instances don't use a VPC endpoint for S3, they go direct over the internet gateway. No routing misconfiguration. Ruled out."
+    ],
+    [
+      "user",
+      "Request timeout ruled out immediately — the error is an instant AccessDenied HTTP 403, not a timeout. The request reaches S3 and is evaluated."
+    ],
+    [
+      "user",
+      "Root cause found: the EC2 instance IAM role (app-server-role) has an explicit Deny statement added last Wednesday for s3:PutObject on arn:aws:s3:::prod-assets/user-uploads/*. An explicit IAM Deny always overrides any Allow, including the bucket policy Allow. The Deny was intended to restrict a different service but was accidentally attached to the wrong role."
+    ],
+    [
+      "user",
+      "This is a classic IAM evaluation order issue: explicit Deny wins over any Allow regardless of source. The bucket policy Allow is irrelevant while the role has an explicit Deny."
+    ],
+    [
+      "user",
+      "Fix: remove the explicit Deny from app-server-role. The Deny should have been added to the analytics-role instead."
+    ],
+    [
+      "user",
+      "Applied the IAM policy change. S3 uploads to user-uploads/ succeed immediately. Confirmed correct prefix isolation on analytics-role."
+    ],
+    [
+      "user",
+      "Bucket policy was correctly permissive throughout — it was never the issue. VPC endpoint was irrelevant."
+    ],
+    [
+      "user",
+      "Added IAM policy analysis step to our change-management checklist and integrated AWS IAM Access Analyzer into the CI pipeline to flag overly broad Deny statements. Incident closed."
+    ]
   ],
   "expect": {
-    "conclusion_contains": ["explicit Deny", "IAM role"],
-    "conclusion_excludes": ["VPC endpoint"],
-    "ruled_out_contains": ["bucket policy", "VPC endpoint", "timeout"],
-    "answer_confidence_in": ["high", "medium"],
-    "no_conclusion": false
+    "conclusion_contains": [
+      "explicit Deny"
+    ],
+    "conclusion_excludes": [
+      "VPC endpoint"
+    ],
+    "ruled_out_contains": [
+      "bucket policy",
+      "VPC endpoint",
+      "timeout"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false,
+    "conclusion_contains_any": [
+      [
+        "iam role",
+        "iam policy",
+        "explicit deny"
+      ]
+    ]
   }
 }

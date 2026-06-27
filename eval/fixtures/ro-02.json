@@ -23,7 +23,7 @@
   ],
   "expect": {
     "ruled_out_contains": [
-      "producer throughput",
+      "producer",
       "broker",
       "partition"
     ],

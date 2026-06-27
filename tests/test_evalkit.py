@@ -110,3 +110,16 @@ def test_grade_no_conclusion_requires_none_confidence():
     fixture = _fixture(expect={"no_conclusion": True})
     bad = RecallAnswer(answer="definitely the metrics leak", answer_confidence="high", no_conclusion=True)
     assert not grade(fixture, bad)[0]
+
+
+def test_grade_normalizes_hyphens_and_punctuation():
+    # "60-second" should satisfy expected "60 second" (hyphen folded, not a false negative).
+    fixture = _fixture(expect={"conclusion_contains": ["60 second"]})
+    assert grade(fixture, RecallAnswer(answer="a 60-second expiry.", answer_confidence="high"))[0]
+
+
+def test_grade_alias_groups_accept_synonyms():
+    # conclusion_contains_any: any synonym in the group counts (clock drift vs skew vs NTP).
+    fixture = _fixture(expect={"conclusion_contains_any": [["clock drift", "clock skew", "ntp"]]})
+    assert grade(fixture, RecallAnswer(answer="it was clock skew from NTP sync", answer_confidence="high"))[0]
+    assert not grade(fixture, RecallAnswer(answer="it was a cache bug", answer_confidence="high"))[0]

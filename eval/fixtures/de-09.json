@@ -23,8 +23,7 @@
   ],
   "expect": {
     "conclusion_contains": [
-      "expir",
-      "60 seconds"
+      "expir"
     ],
     "conclusion_excludes": [
       "bucket policy"
@@ -37,6 +36,12 @@
       "high",
       "medium"
     ],
-    "no_conclusion": false
+    "no_conclusion": false,
+    "conclusion_contains_any": [
+      [
+        "60 second",
+        "60s"
+      ]
+    ]
   }
 }

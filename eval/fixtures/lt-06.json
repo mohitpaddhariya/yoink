@@ -4,22 +4,72 @@
   "session_hint": "the DNS resolution timeout investigation in production",
   "question": "What was the root cause of the DNS resolution timeouts on the app servers?",
   "turns": [
-    ["user", "DNS resolution intermittently timing out on our production app servers. Affecting outbound API calls and S3 access. Root cause identified immediately: /etc/resolv.conf on every app server lists only a single upstream nameserver (10.0.0.2) with no fallback entries. That server has 5% packet loss. With no alternate to try, every dropped query results in a full timeout after the default 5-second wait."],
-    ["user", "Investigated DNS cache poisoning as a possibility since some queries resolve and some don't. All our DNS traffic is internal VPC, never exposed to the public internet. Poisoning is not plausible here."],
-    ["user", "Checked DNSSEC validation: our stub resolver is systemd-resolved, and DNSSEC validation is disabled in resolved.conf. Not the cause."],
-    ["user", "Tested whether a firewall rule was blocking port 53: confirmed via security group audit that UDP/TCP 53 is open between app servers and the DNS server subnet. Firewall not the cause."],
-    ["user", "Captured tcpdump on an app server during a timeout event: resolver sends query to 10.0.0.2, retransmits to the same IP twice more, never attempts any alternate. Confirms single-nameserver behavior."],
-    ["user", "Checked all 12 app servers: identical resolv.conf with a single nameserver entry. All were provisioned from the same Terraform module that hardcodes exactly one nameserver."],
-    ["user", "Secondary finding: the packet loss on 10.0.0.2 was caused by a misconfigured NIC ring buffer. Fixed that too, but it doesn't address the structural problem."],
-    ["user", "Fix: updated the Terraform module to write three nameservers (10.0.0.2, 10.0.0.3, 10.0.0.4) and added 'options rotate' to round-robin. Reprovisioned all 12 servers."],
-    ["user", "DNS timeouts gone. DNSSEC validation and firewall both definitively ruled out."],
-    ["user", "Filed a ticket to add a nameserver count assertion to our instance provisioning smoke test suite. Closing the incident."]
+    [
+      "user",
+      "DNS resolution intermittently timing out on our production app servers. Affecting outbound API calls and S3 access. Root cause identified immediately: /etc/resolv.conf on every app server lists only a single upstream nameserver (10.0.0.2) with no fallback entries. That server has 5% packet loss. With no alternate to try, every dropped query results in a full timeout after the default 5-second wait."
+    ],
+    [
+      "user",
+      "Investigated DNS cache poisoning as a possibility since some queries resolve and some don't. All our DNS traffic is internal VPC, never exposed to the public internet. Poisoning is not plausible here."
+    ],
+    [
+      "user",
+      "Checked DNSSEC validation: our stub resolver is systemd-resolved, and DNSSEC validation is disabled in resolved.conf. Not the cause."
+    ],
+    [
+      "user",
+      "Tested whether a firewall rule was blocking port 53: confirmed via security group audit that UDP/TCP 53 is open between app servers and the DNS server subnet. Firewall not the cause."
+    ],
+    [
+      "user",
+      "Captured tcpdump on an app server during a timeout event: resolver sends query to 10.0.0.2, retransmits to the same IP twice more, never attempts any alternate. Confirms single-nameserver behavior."
+    ],
+    [
+      "user",
+      "Checked all 12 app servers: identical resolv.conf with a single nameserver entry. All were provisioned from the same Terraform module that hardcodes exactly one nameserver."
+    ],
+    [
+      "user",
+      "Secondary finding: the packet loss on 10.0.0.2 was caused by a misconfigured NIC ring buffer. Fixed that too, but it doesn't address the structural problem."
+    ],
+    [
+      "user",
+      "Fix: updated the Terraform module to write three nameservers (10.0.0.2, 10.0.0.3, 10.0.0.4) and added 'options rotate' to round-robin. Reprovisioned all 12 servers."
+    ],
+    [
+      "user",
+      "DNS timeouts gone. DNSSEC validation and firewall both definitively ruled out."
+    ],
+    [
+      "user",
+      "Filed a ticket to add a nameserver count assertion to our instance provisioning smoke test suite. Closing the incident."
+    ]
   ],
   "expect": {
-    "conclusion_contains": ["single", "nameserver", "no fallback"],
-    "conclusion_excludes": ["DNSSEC"],
-    "ruled_out_contains": ["cache poisoning", "DNSSEC", "firewall"],
-    "answer_confidence_in": ["high", "medium"],
-    "no_conclusion": false
+    "conclusion_contains": [
+      "single",
+      "nameserver"
+    ],
+    "conclusion_excludes": [
+      "DNSSEC"
+    ],
+    "ruled_out_contains": [
+      "cache poisoning",
+      "DNSSEC",
+      "firewall"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false,
+    "conclusion_contains_any": [
+      [
+        "no fallback",
+        "single nameserver",
+        "no redundancy",
+        "single hardcoded nameserver"
+      ]
+    ]
   }
 }
