@@ -72,15 +72,30 @@ def _normalize_confidence(value: object) -> str:
     return _SYNONYMS.get(text, "low")
 
 
+_CONTRACT_KEYS = ("answer", "answer_confidence", "no_conclusion", "ruled_out")
+
+
 def _json_candidates(text: str) -> Iterator[str]:
     yield text
     start = text.find("{")
     while start != -1:
         depth = 0
+        in_string = False
+        escaped = False
         for i in range(start, len(text)):
-            if text[i] == "{":
+            ch = text[i]
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif ch == "\\":
+                    escaped = True
+                elif ch == '"':
+                    in_string = False
+            elif ch == '"':
+                in_string = True
+            elif ch == "{":
                 depth += 1
-            elif text[i] == "}":
+            elif ch == "}":
                 depth -= 1
                 if depth == 0:
                     yield text[start : i + 1]
@@ -89,6 +104,8 @@ def _json_candidates(text: str) -> Iterator[str]:
 
 
 def _extract_obj(text: str) -> dict | None:
+    # Prefer a dict that looks like our contract over a leading JSON-shaped aside.
+    fallback = None
     for candidate in _json_candidates(text):
         for loader in (json.loads, ast.literal_eval):
             try:
@@ -96,8 +113,11 @@ def _extract_obj(text: str) -> dict | None:
             except (ValueError, SyntaxError):
                 continue
             if isinstance(obj, dict):
-                return obj
-    return None
+                if any(key in obj for key in _CONTRACT_KEYS):
+                    return obj
+                if fallback is None:
+                    fallback = obj
+    return fallback
 
 
 def _reconcile(
@@ -118,6 +138,13 @@ def _reconcile(
     return RecallAnswer(answer, confidence, ruled_out, cited_turn or None, no_conclusion)
 
 
+def _as_bool(value: object) -> bool:
+    # A model may send the JSON string "false" — bool("false") is True, so coerce strings.
+    if isinstance(value, str):
+        return value.strip().lower() in ("true", "yes", "1")
+    return bool(value)
+
+
 def parse_answer(result_text: str) -> RecallAnswer:
     """Leniently and totally parse a resumed session's reply (never raises)."""
     text = (result_text or "").strip()
@@ -129,11 +156,12 @@ def parse_answer(result_text: str) -> RecallAnswer:
     ruled = obj.get("ruled_out") or []
     if not isinstance(ruled, list):
         ruled = [ruled]
+    raw_answer = obj.get("answer")
     cited = obj.get("cited_turn")
     return _reconcile(
-        str(obj.get("answer", "")),
-        obj.get("answer_confidence", "none"),
+        "" if raw_answer is None else str(raw_answer),  # explicit null -> "", not "None"
+        obj.get("answer_confidence") or "none",
         [str(r) for r in ruled],
         str(cited) if cited else None,
-        bool(obj.get("no_conclusion", False)),
+        _as_bool(obj.get("no_conclusion", False)),
     )

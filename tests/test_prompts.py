@@ -73,3 +73,29 @@ def test_parse_empty_reply():
     assert result.answer == ""
     assert result.answer_confidence == "none"
     assert result.no_conclusion is True
+
+
+def test_parse_no_conclusion_string_false_is_false():
+    # bool("false") is True — must coerce the JSON string properly.
+    result = parse_answer('{"answer": "it is X", "answer_confidence": "high", "no_conclusion": "false"}')
+    assert result.no_conclusion is False
+    assert result.answer == "it is X"
+
+
+def test_parse_null_answer_is_empty_not_none_string():
+    result = parse_answer('{"answer": null, "answer_confidence": "none", "no_conclusion": true}')
+    assert result.answer == ""
+    assert result.no_conclusion is True
+
+
+def test_parse_prefers_contract_object_over_leading_aside():
+    raw = 'For example {"note": "ignore me"} — and the real answer: {"answer": "token refresh", "answer_confidence": "high"}'
+    result = parse_answer(raw)
+    assert result.answer == "token refresh"
+    assert result.answer_confidence == "high"
+
+
+def test_parse_brace_inside_string_value():
+    result = parse_answer('{"answer": "set the rate to 80% }", "answer_confidence": "high"}')
+    assert "80%" in result.answer
+    assert result.answer_confidence == "high"
