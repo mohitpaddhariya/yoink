@@ -62,7 +62,6 @@ class AnswererResult:
     answer: RecallAnswer | None
     error: AnswererError | None
     forked_session_id: str | None
-    raw_envelope: dict | None
 
 
 @dataclass(frozen=True)
@@ -83,8 +82,8 @@ def _matches_session_signature(text: str) -> bool:
     return any(sig in low for sig in SESSION_NOT_FOUND_SIGNATURES)
 
 
-def _fail(kind, message, *, returncode=None, stderr_excerpt=None, raw=None) -> AnswererResult:
-    return AnswererResult(False, None, None, AnswererError(kind, message, returncode, stderr_excerpt), None, raw)
+def _fail(kind, message, *, returncode=None, stderr_excerpt=None) -> AnswererResult:
+    return AnswererResult(False, None, None, AnswererError(kind, message, returncode, stderr_excerpt), None)
 
 
 def _build_command(
@@ -150,7 +149,7 @@ def run_answerer(
     ):
         raw = env if isinstance(env, dict) else None
         kind = ErrorKind.SESSION_NOT_FOUND if _matches_session_signature(json.dumps(raw)) else ErrorKind.MISSING_RESULT
-        return _fail(kind, "envelope had no usable result", returncode=0, raw=raw)
+        return _fail(kind, "envelope had no usable result", returncode=0)
 
     result_text = env["result"]
     try:
@@ -159,9 +158,9 @@ def run_answerer(
         return AnswererResult(
             False, result_text, None,
             AnswererError(ErrorKind.ANSWER_PARSE_FAILED, f"parse_answer failed: {exc}"),
-            env.get("session_id"), env,
+            env.get("session_id"),
         )
-    return AnswererResult(True, result_text, answer, None, env.get("session_id"), env)
+    return AnswererResult(True, result_text, answer, None, env.get("session_id"))
 
 
 def smoke_check(*, session_id=None, target_project_cwd=None, claude_bin="claude", timeout=SMOKE_TIMEOUT) -> SmokeResult:
