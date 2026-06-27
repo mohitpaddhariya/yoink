@@ -13,7 +13,15 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-DEFAULT_PROJECTS_ROOT = Path.home() / ".claude" / "projects"
+def default_projects_root() -> Path:
+    """Where Claude Code stores transcripts, honoring ``CLAUDE_CONFIG_DIR``.
+
+    Custom config profiles (``CLAUDE_CONFIG_DIR=~/.claude-personal``) keep their
+    transcripts under that dir, not ``~/.claude`` — so discovery must follow it.
+    """
+    config_dir = os.environ.get("CLAUDE_CONFIG_DIR") or str(Path.home() / ".claude")
+    return Path(config_dir) / "projects"
+
 
 # Ranking weights / thresholds — pinned so source_match labels stay deterministic.
 TITLE_W = 3.0
@@ -199,12 +207,12 @@ def resolve(
     caller_session_id: str | None,
     caller_cwd: str,
     *,
-    projects_root: Path | str = DEFAULT_PROJECTS_ROOT,
+    projects_root: Path | str | None = None,
     cross_project: bool = False,
     top_n: int = 3,
 ) -> ResolveResult:
     """Find and rank candidate sessions for ``peer_hint``. Never raises on bad data."""
-    projects_root = Path(projects_root)
+    projects_root = Path(projects_root) if projects_root is not None else default_projects_root()
     hint_tokens = _tokenize(peer_hint or "")
     dirs = _candidate_dirs(projects_root, caller_cwd, cross_project)
     candidates: list[Candidate] = []
