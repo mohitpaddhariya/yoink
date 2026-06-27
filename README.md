@@ -70,9 +70,10 @@ Then in any Claude session, just ask in natural language:
 
 - **Claude → Claude, localhost only.** Cross-agent (Codex), remote sharing, and live in-memory
   messaging are deferred — see [`.claude/plan.md`](.claude/plan.md) and the roadmap there.
-- Discovery reads `~/.claude/projects/**/*.jsonl` **lightly and defensively** (titles + recency);
-  that JSONL format is internal and may change between Claude Code versions, so discovery degrades
-  rather than crashes. Answering only ever goes through the official `claude -p --resume` interface.
+- Discovery reads your transcripts under `$CLAUDE_CONFIG_DIR/projects` (default `~/.claude/projects`)
+  **lightly and defensively** (titles + recency); that JSONL format is internal and may change between
+  Claude Code versions, so discovery degrades rather than crashes. Answering only ever goes through the
+  official `claude -p --resume` interface.
 - Default-deny across repos: yoink only scans the caller's project unless cross-project is opted in.
 
 ## Development

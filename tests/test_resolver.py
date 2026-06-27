@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from helpers import write_transcript
-from resolver import cwd_to_slug, resolve
+from resolver import cwd_to_slug, default_projects_root, resolve
 
 
 def _resolve(hint, projects_root, repo, caller_session_id=None, **kw):
@@ -177,3 +177,10 @@ def test_cross_project_default_deny_then_optin(projects_root, repo, tmp_path):
     assert "there" not in {c.session_id for c in default.candidates}
     optin = _resolve("auth token", projects_root, repo, cross_project=True)
     assert optin.candidates[0].session_id == "there"
+
+
+def test_default_projects_root_respects_config_dir(monkeypatch):
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", "/tmp/cfg")
+    assert default_projects_root() == Path("/tmp/cfg/projects")
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
+    assert default_projects_root().as_posix().endswith("/.claude/projects")
