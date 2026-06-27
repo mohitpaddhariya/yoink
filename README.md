@@ -43,7 +43,9 @@ asserts the resumed process loaded **zero** tools).
 
 ```bash
 uv sync
-claude mcp add yoink -- uv run --directory "$(pwd)" python broker.py
+# --scope user makes yoink available in every Claude session (so you can ask one
+# session about another); drop it for this-project-only.
+claude mcp add --scope user yoink -- uv run --directory "$(pwd)" python broker.py
 uv run python broker.py --health     # verify the recall-only flags work end-to-end
 ```
 
