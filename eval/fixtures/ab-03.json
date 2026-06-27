@@ -1,0 +1,31 @@
+{
+  "id": "ab-03",
+  "category": "abstention",
+  "session_hint": "the Kafka consumer lag spike on the payments topic",
+  "question": "What caused the consumer group lag spike on the payments topic last Thursday?",
+  "turns": [
+    [
+      "user",
+      "Consumer group payments-processor fell behind by ~800k messages last Thursday from 14:00 to 16:30 UTC. No deployment happened, broker alerts were quiet, and traffic volume looked normal for that time window."
+    ],
+    [
+      "user",
+      "Checked broker logs: no under-replicated partitions, no leadership elections, no ISR shrinks. Consumer instance CPU and memory were within normal bounds the whole time. The group eventually caught up on its own by 17:00."
+    ],
+    [
+      "user",
+      "One theory: that window had a batch of unusually large messages — average payload was about 3x normal size. Large messages slow down the fetch loop if the consumer fetch buffer fills and the deserializer is doing a lot of work."
+    ],
+    [
+      "user",
+      "Tried reproducing in staging with synthetic large-payload messages. Consumer lag increases but nothing close to 800k, and staging has fewer partitions and lower throughput so it's not a clean comparison."
+    ],
+    [
+      "user",
+      "The production metrics from that window are too old for detailed per-partition consumer lag traces. The large-payload hypothesis is plausible but entirely unconfirmed. Can't rule out a transient network issue or a broker GC pause we didn't catch in alerts. Couldn't get to the bottom of it."
+    ]
+  ],
+  "expect": {
+    "no_conclusion": true
+  }
+}

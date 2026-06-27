@@ -1,0 +1,31 @@
+{
+  "id": "ab-13",
+  "category": "abstention",
+  "session_hint": "the rate limiter false-positive throttling investigation after Redis Cluster migration",
+  "question": "What was causing legitimate API requests to be rate-limited unexpectedly after the Redis migration?",
+  "turns": [
+    [
+      "user",
+      "Enterprise customers started hitting rate limits well under their contracted quotas right after last Thursday's infrastructure change. We migrated our rate limiter's backing store from a single Redis instance to a 3-shard Redis Cluster."
+    ],
+    [
+      "user",
+      "With Redis Cluster, keys are distributed across shards by hash slot. If our sliding window uses multiple time-bucket keys for one customer, those keys could land on different shards. Cross-shard operations aren't atomic in Redis Cluster, which could cause counter inconsistency."
+    ],
+    [
+      "user",
+      "Reviewed the rate limiter implementation — it uses a single Redis key per customer per minute window. So the multi-key atomicity concern doesn't apply directly. But some enterprise customers have sub-accounts, and their rate limits are aggregated across sub-account keys that could be on different shards."
+    ],
+    [
+      "user",
+      "The sub-account aggregation theory is plausible, but one affected customer has a single account with no sub-accounts and is still getting false throttles. So either the sub-account theory is wrong, or there's a separate issue affecting single-account customers too. Can't pin down the pattern."
+    ],
+    [
+      "user",
+      "Staging uses a single Redis instance so I can't reproduce the Cluster behavior there. Logs don't show anything useful beyond the 429 responses themselves. The pattern of who gets throttled doesn't match any obvious grouping. Still not sure what's happening — leaving it open while we consider rolling back to single-instance Redis."
+    ]
+  ],
+  "expect": {
+    "no_conclusion": true
+  }
+}

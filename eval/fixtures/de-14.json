@@ -1,0 +1,42 @@
+{
+  "id": "de-14",
+  "category": "dead_end_suppression",
+  "session_hint": "the Python asyncio order fulfillment deadlock investigation",
+  "question": "What was causing the order fulfillment service tasks to hang indefinitely?",
+  "turns": [
+    [
+      "user",
+      "The Python asyncio order-fulfillment service hangs indefinitely on about 1 in 200 orders. CPU drops to 0 and the affected tasks never complete or raise. First theory: synchronous file I/O in the PDF receipt generator is blocking the event loop."
+    ],
+    [
+      "user",
+      "Replaced all open() calls in the PDF generator with aiofiles equivalents. Added asyncio.get_event_loop().time() timestamps around every await to confirm the loop is not blocking. Hangs continue at the same rate. Event loop blocking is not the cause. Ruling it out."
+    ],
+    [
+      "user",
+      "Second theory: asyncio.wait_for timeout is set to 500ms and aggressive retries are overloading the downstream inventory API causing cascading waits. Extended timeout to 30 seconds across all wait_for calls. Tasks still hang forever — they never reach the timeout path at all, which means they're stuck before any awaitable completes. Ruling out timeout misconfiguration."
+    ],
+    [
+      "user",
+      "Instrumented with asyncio task introspection: dumped asyncio.all_tasks() during a hang. Two tasks are stuck — reserve_inventory() is awaiting lock_payment, and process_payment() is awaiting lock_inventory. Both asyncio.Lock objects were acquired in opposite order depending on which code path triggered the concurrent order on the same SKU. Classic circular lock dependency. Fixed by establishing a consistent lock acquisition order everywhere: always acquire lock_inventory before lock_payment. Zero hangs in 72 hours of soak testing. Root cause: two coroutines acquiring asyncio.Lock objects in inconsistent order, causing circular deadlock."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "lock",
+      "inconsistent order"
+    ],
+    "conclusion_excludes": [
+      "timeout"
+    ],
+    "ruled_out_contains": [
+      "blocking",
+      "timeout"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

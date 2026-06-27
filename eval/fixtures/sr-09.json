@@ -1,0 +1,16 @@
+{
+  "id": "sr-09",
+  "category": "session_resolution",
+  "session_hint": "the dns cutover traffic explosion",
+  "question": "What did we conclude caused the thundering herd when we updated the DNS record?",
+  "turns": [
+    ["user", "When we changed our primary DNS A record to point to the new load balancer, traffic slammed the new server within seconds and took it down. We expected a gradual migration but got a wall of simultaneous requests."],
+    ["user", "We lowered the TTL to 60 seconds two days before the cutover to make rollback fast. At the moment of the record change, every client's resolver cache expired in the same 60-second window and all re-resolved simultaneously."],
+    ["user", "Root cause: the short TTL caused synchronized expiry across millions of clients. All resolvers refreshed within the same minute, and every client hit the new IP at once — a classic thundering herd. The 60-second TTL that was meant to enable fast rollback actually caused the stampede. Fix for next time: use DNS-level weighted routing to shift traffic gradually (e.g. 10% → 50% → 100%) over multiple TTL windows, and pre-warm the new load balancer before cutting over."]
+  ],
+  "expect": {
+    "conclusion_contains": ["TTL", "synchronized", "thundering herd"],
+    "answer_confidence_in": ["high", "medium"],
+    "no_conclusion": false
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "id": "tu-11",
+  "category": "temporal_update",
+  "session_hint": "the container orchestration platform decision for the backend services",
+  "question": "What did we finalize as the container orchestration platform?",
+  "turns": [
+    [
+      "user",
+      "We need to orchestrate the backend containers. Docker Swarm was proposed — simpler than Kubernetes, we can stand it up in a day, and the team already knows Docker Compose syntax."
+    ],
+    [
+      "user",
+      "Swarm cluster running on 5 VMs. Services deployed via docker stack deploy. Works great for current load, low operational overhead."
+    ],
+    [
+      "user",
+      "Product roadmap requires per-tenant autoscaling and canary deployments within the quarter. Swarm's autoscaling story is basically nonexistent, and canary requires brittle manual service weight updates."
+    ],
+    [
+      "user",
+      "Scrap Swarm. We're moving to Kubernetes on EKS — HPA handles autoscaling declaratively, and Argo Rollouts gives us proper canary with automated analysis. More complex to operate but it's the only platform that covers the roadmap. Final answer: Kubernetes."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "kubernetes"
+    ],
+    "ruled_out_contains": [
+      "swarm"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

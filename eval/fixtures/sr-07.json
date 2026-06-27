@@ -1,0 +1,16 @@
+{
+  "id": "sr-07",
+  "category": "session_resolution",
+  "session_hint": "the stripe double charge problem",
+  "question": "What did we conclude was causing duplicate Stripe charges for the same order?",
+  "turns": [
+    ["user", "Some customers are being charged twice through our Stripe integration. We see two successful PaymentIntent confirmations tied to a single checkout flow for the same order."],
+    ["user", "Our frontend retries the POST /checkout API call if it doesn't get a 200 within 3 seconds. Each call creates a brand new Stripe PaymentIntent with a freshly generated idempotency key, so Stripe treats each request as distinct."],
+    ["user", "Root cause: the idempotency key was randomly generated per request (UUID v4) instead of being derived from the order. So retries produced new keys, new PaymentIntents, and new charges. Fix: derive the Stripe idempotency key deterministically from the order ID — e.g. 'pay-{orderId}' — so any retry for the same order reuses the same PaymentIntent and Stripe deduplicates the charge automatically."]
+  ],
+  "expect": {
+    "conclusion_contains": ["idempotency key", "order ID", "randomly generated"],
+    "answer_confidence_in": ["high", "medium"],
+    "no_conclusion": false
+  }
+}

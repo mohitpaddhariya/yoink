@@ -1,0 +1,25 @@
+{
+  "id": "lt-01",
+  "category": "long_transcript_stress",
+  "session_hint": "the Redis cache hit-rate collapse investigation",
+  "question": "What did we conclude was causing the Redis cache hit-rate to collapse?",
+  "turns": [
+    ["user", "Our Redis cache hit rate dropped from 92% to 41% overnight. Starting investigation. No code was deployed in the last 48 hours."],
+    ["user", "Checked Redis slow log — a handful of Lua scripts are taking 8ms each, but they fire maybe once per minute. Probably not the cause given the volume of misses."],
+    ["user", "Pulled network stats between app servers and Redis: average latency is 0.4ms, zero packet drops reported by the NIC. Network looks clean."],
+    ["user", "Examined key TTL settings across our hot keyspace — product catalog keys all have 1h TTLs, session keys 24h, unchanged for months. TTL expiry is not the cause."],
+    ["user", "Found it: maxmemory-policy was changed to allkeys-lru last Tuesday during a capacity review. maxmemory is set to 2GB. Memory usage crossed 1.9GB just after midnight and Redis started evicting hot keys under LRU pressure. That's the root cause — allkeys-lru eviction under memory pressure wiped the hot keyspace."],
+    ["user", "Verified by checking evicted_keys counter in Redis INFO stats: 214,000 keys evicted between midnight and 2am. Product catalog keys were the primary casualty given their size."],
+    ["user", "Bumped Redis maxmemory to 4GB as immediate mitigation. Cache hit rate climbing back — now at 78% and rising."],
+    ["user", "Added a CloudWatch alarm on Redis UsedMemory > 80% of maxmemory so we catch this before eviction starts next time."],
+    ["user", "Revisited Lua scripts: they are infrequent and short-lived, confirmed no impact on hit rate. Closing that angle."],
+    ["user", "Changing maxmemory-policy back to volatile-lru so only keys with explicit TTLs are eviction candidates. Much safer default. Incident closed."]
+  ],
+  "expect": {
+    "conclusion_contains": ["allkeys-lru", "evict"],
+    "conclusion_excludes": ["lua"],
+    "ruled_out_contains": ["lua", "network", "TTL"],
+    "answer_confidence_in": ["high", "medium"],
+    "no_conclusion": false
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "id": "cr-01",
+  "category": "conclusion_recall",
+  "session_hint": "the Redis latency spike investigation",
+  "question": "What did we conclude was causing the Redis latency spikes?",
+  "turns": [
+    ["user", "Seeing intermittent Redis latency spikes on our session store cluster — p99 jumps from 1ms to 400ms every few minutes. Running Redis 6.2 on a single node. Need to find the cause."],
+    ["user", "Checked memory usage: 2.1GB out of 4GB available, no evictions. Checked network: bandwidth looks fine. Connected clients: 45, well under the 1000 limit."],
+    ["user", "Ran SLOWLOG GET 50 during a spike. Found entries for a KEYS * command taking 380ms. Traced it back to our cache-warming cron job that runs every 2 minutes — it calls KEYS * to enumerate all session keys before warming them."],
+    ["user", "Confirmed: KEYS * is O(N) over the entire keyspace and blocks Redis's single-threaded event loop while it scans. Replacing it with SCAN in the cron job eliminated all spikes. Root cause is KEYS * blocking the event loop."]
+  ],
+  "expect": {
+    "conclusion_contains": ["keys *", "blocking"],
+    "answer_confidence_in": ["high", "medium"],
+    "no_conclusion": false
+  }
+}

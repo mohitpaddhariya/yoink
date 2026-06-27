@@ -1,0 +1,35 @@
+{
+  "id": "ro-06",
+  "category": "ruled_out_recall",
+  "session_hint": "the Kubernetes payment-service OOMKilled pod investigation",
+  "question": "What approaches did we rule out when investigating the OOMKilled pods in the payment service?",
+  "turns": [
+    [
+      "user",
+      "The payment-service pods keep getting OOMKilled with a 512Mi memory limit. We set the JVM heap to -Xmx384m to leave 128Mi headroom. First theory: the application has a memory leak in the transaction processing code."
+    ],
+    [
+      "user",
+      "Ran the service under sustained load for 6 hours and took heap dumps every 30 minutes. Old-gen heap stabilizes at 280Mi with no upward trend. No leak pattern visible in any dump. Application memory leak is ruled out."
+    ],
+    [
+      "user",
+      "Tried reducing JVM heap to -Xmx300m thinking off-heap regions (Metaspace, thread stacks, direct buffers) were consuming the extra headroom. OOMKills continued at the same rate. JVM heap sizing is not the root issue."
+    ],
+    [
+      "user",
+      "Found it: the Envoy proxy sidecar had no memory limit configured. With 500 upstream endpoints registered in xDS, Envoy was consuming 180–220Mi for cluster statistics and endpoint health data. Added a 256Mi limit to the sidecar and bumped the pod memory limit to 768Mi — OOMKills stopped immediately."
+    ]
+  ],
+  "expect": {
+    "ruled_out_contains": [
+      "memory leak",
+      "JVM heap"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

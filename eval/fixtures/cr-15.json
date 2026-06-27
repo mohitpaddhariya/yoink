@@ -1,0 +1,17 @@
+{
+  "id": "cr-15",
+  "category": "conclusion_recall",
+  "session_hint": "the Elasticsearch query performance degradation investigation",
+  "question": "What did we conclude was causing Elasticsearch query performance to degrade steadily over two months?",
+  "turns": [
+    ["user", "Query p99 on our Elasticsearch 8.6 cluster has gone from 50ms to 4 seconds over the past two months. Query patterns are unchanged. Index size grew from 8GB to 11GB — within normal range."],
+    ["user", "Checked heap on all three data nodes: 75-80% utilization. JVM GC logs show frequent full GCs. Heap shouldn't be this high for an 11GB index under normal circumstances."],
+    ["user", "Ran GET /logs-*/_mapping and got a 4MB response back. Dynamic mapping is enabled and user-submitted JSON payloads are indexed as-is. Over two months, 43,000 unique field names have accumulated. Each field adds an entry to the in-memory field data cache and inflates cluster state — a classic mapping explosion causing heap to balloon."],
+    ["user", "Set dynamic: false on the index template and reindexed with explicit mappings covering the 30 fields we actually query. Heap dropped to 35%, full GCs disappeared, query p99 back to 60ms. Root cause: dynamic mapping explosion from user-supplied JSON fields creating 43,000 unique mappings and exhausting heap."]
+  ],
+  "expect": {
+    "conclusion_contains": ["dynamic mapping", "mapping explosion"],
+    "answer_confidence_in": ["high", "medium"],
+    "no_conclusion": false
+  }
+}

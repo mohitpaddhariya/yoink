@@ -1,0 +1,16 @@
+{
+  "id": "sr-06",
+  "category": "session_resolution",
+  "session_hint": "the kubernetes java pods being killed every night",
+  "question": "What did we conclude was causing the nightly OOMKill restarts of the Java pods?",
+  "turns": [
+    ["user", "Our Java microservice pods are OOMKilled by Kubernetes every night around 2am. Memory climbs steadily through the day and eventually breaches the 512Mi container limit."],
+    ["user", "We never set any JVM heap flags. The JVM defaults to sizing the heap as a percentage of total system memory, which on the underlying node is 32GB — far beyond the container's 512Mi limit."],
+    ["user", "Root cause: the JVM is unaware of Linux cgroup memory limits and calculates heap size from total host memory, allocating a multi-gigabyte heap that cannot fit inside the 512Mi container limit. Fix: add -XX:+UseContainerSupport and -XX:MaxRAMPercentage=75.0 to JVM startup flags. UseContainerSupport tells the JVM to read the cgroup limit instead of host memory, and MaxRAMPercentage caps the heap to 75% of that limit, keeping it well within 512Mi."]
+  ],
+  "expect": {
+    "conclusion_contains": ["JVM", "cgroup", "UseContainerSupport"],
+    "answer_confidence_in": ["high", "medium"],
+    "no_conclusion": false
+  }
+}

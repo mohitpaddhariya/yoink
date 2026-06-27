@@ -1,0 +1,37 @@
+{
+  "id": "tu-03",
+  "category": "temporal_update",
+  "session_hint": "the feature branch integration strategy for the monorepo",
+  "question": "What did we settle on as the final integration strategy for feature branches?",
+  "turns": [
+    [
+      "user",
+      "Standardizing the git workflow for the monorepo. Proposal: always rebase feature branches onto main before merging to keep history linear and bisect-friendly."
+    ],
+    [
+      "user",
+      "Rebase policy written up in CONTRIBUTING.md. Pre-push hook blocks merge commits. Team agreed to it."
+    ],
+    [
+      "user",
+      "Several engineers reported that rebasing onto main is brutal on the shared packages directory — people are spending 45 minutes resolving conflicts on every PR. Productivity is tanking."
+    ],
+    [
+      "user",
+      "Changed our minds on rebase. Switching to merge commits with --no-ff so each PR preserves its original branch context in history. Linear history isn't worth the conflict overhead. Final strategy: merge commits."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "merge"
+    ],
+    "ruled_out_contains": [
+      "rebase"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

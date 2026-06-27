@@ -1,0 +1,35 @@
+{
+  "id": "ro-09",
+  "category": "ruled_out_recall",
+  "session_hint": "the intermittent DNS resolution failures in the Kubernetes cluster",
+  "question": "What approaches did we rule out when diagnosing the intermittent DNS resolution failures in the Kubernetes cluster?",
+  "turns": [
+    [
+      "user",
+      "About 0.3% of DNS lookups inside our Kubernetes cluster fail with SERVFAIL, affecting service-to-service calls. First theory: CoreDNS TTL is too short, causing cache churn and hammering the upstream resolver."
+    ],
+    [
+      "user",
+      "Checked the CoreDNS ConfigMap: TTL is 30 seconds. Upstream resolver at 169.254.20.10 responds in under 5ms. Bumped TTL to 120s and the failure rate did not change. TTL misconfiguration is not the cause, ruling it out."
+    ],
+    [
+      "user",
+      "Suspected the search domain list — pods have 5 search domains, meaning up to 5 DNS queries per unqualified hostname. Tested with fully qualified names ending in a dot to bypass search domains entirely — failures still occurred. Search domain configuration is not the issue."
+    ],
+    [
+      "user",
+      "Discovered CoreDNS pods are CPU throttled: they have a 100m CPU limit and were hitting 40% throttle under load. Request queues backed up during bursts and queries timed out. Raised the CoreDNS CPU limit to 500m and failure rate fell to 0.001%."
+    ]
+  ],
+  "expect": {
+    "ruled_out_contains": [
+      "TTL",
+      "search domain"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

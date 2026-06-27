@@ -1,0 +1,34 @@
+{
+  "id": "cr-06",
+  "category": "conclusion_recall",
+  "session_hint": "the Kubernetes API pod restart investigation",
+  "question": "What did we conclude was causing the api-gateway pods to restart every few hours in Kubernetes?",
+  "turns": [
+    [
+      "user",
+      "Our api-gateway pods on the production EKS cluster keep restarting. kubectl get pods shows 47 restarts over the past two days. The service degrades noticeably during each restart cycle."
+    ],
+    [
+      "user",
+      "Checked application logs right before the last crash: no errors, no panics, no unhandled exceptions. The process just vanishes without any log output."
+    ],
+    [
+      "user",
+      "Ran kubectl describe pod on a just-restarted instance. The Last State section shows reason: OOMKilled. The Deployment spec has no resources.limits.memory set, so the Kubernetes OOM killer evicts the container whenever the node comes under memory pressure."
+    ],
+    [
+      "user",
+      "Set resources.limits.memory: 512Mi and resources.requests.memory: 256Mi in the Deployment. Restarts stopped immediately. Root cause: no memory limit configured, causing OOMKilled eviction under node memory pressure."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "memory limit"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

@@ -56,8 +56,12 @@ class ResolveResult:
 
 
 def cwd_to_slug(cwd: str) -> str:
-    """Claude Code project slug: every ``/`` and ``.`` becomes ``-``. Lossy, non-invertible."""
-    return cwd.replace("/", "-").replace(".", "-")
+    """Claude Code project slug: every ``/``, ``.`` and ``_`` becomes ``-``. Lossy, non-invertible.
+
+    The ``_`` matters: Claude slugs ``/srv/my_app`` to ``-srv-my-app``, so a project path with an
+    underscore would otherwise be looked up in a directory that does not exist.
+    """
+    return cwd.replace("/", "-").replace(".", "-").replace("_", "-")
 
 
 def _tokenize(text: str) -> set[str]:

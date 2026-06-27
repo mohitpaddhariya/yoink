@@ -1,0 +1,35 @@
+{
+  "id": "ro-14",
+  "category": "ruled_out_recall",
+  "session_hint": "the gRPC streaming connection drops investigation",
+  "question": "What did we rule out when investigating the gRPC streaming connection drops?",
+  "turns": [
+    [
+      "user",
+      "Client-side gRPC streaming connections to our data feed service drop every 5–6 minutes with status UNAVAILABLE. First theory: the server's keepalive settings are too aggressive and terminating idle streams."
+    ],
+    [
+      "user",
+      "Checked server config: GRPC_ARG_KEEPALIVE_TIME_MS is 120000 and GRPC_ARG_KEEPALIVE_TIMEOUT_MS is 20000. Captured a Wireshark trace: client sends HTTP/2 PING frames, server ACKs them correctly. Server keepalive settings are not the cause, ruling them out."
+    ],
+    [
+      "user",
+      "Suspected the client has a per-call deadline of 5 minutes set somewhere. Audited all client channel options and per-RPC call options in the codebase: no deadline or timeout is configured on this streaming call. Client deadline config is not the issue."
+    ],
+    [
+      "user",
+      "Root cause: traffic routes through an AWS Network Load Balancer with a 350-second idle connection timeout. During low-traffic windows the stream carries no data for over 350 seconds and the NLB silently drops the TCP connection. The gRPC PING keepalives only run at the HTTP/2 layer — they don't prevent NLB idle timeout. Reduced NLB idle timeout to 60s and added TCP keepalive at the socket level; drops stopped completely."
+    ]
+  ],
+  "expect": {
+    "ruled_out_contains": [
+      "keepalive",
+      "deadline"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

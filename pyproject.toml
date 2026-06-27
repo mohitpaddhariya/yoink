@@ -21,12 +21,12 @@ build-backend = "hatchling.build"
 packages = ["src/yoink"]
 
 [dependency-groups]
-dev = ["pytest>=8", "pytest-asyncio>=0.24"]
+dev = ["pytest>=8", "pytest-asyncio>=0.24", "matplotlib>=3.8"]  # matplotlib: benchmark graphs only
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-pythonpath = ["eval"]
+pythonpath = ["eval", "benchmark"]
 markers = [
     "eval: live model-dependent integration test (needs YOINK_INTEGRATION=1 and the claude CLI)",
 ]

@@ -1,0 +1,38 @@
+{
+  "id": "tu-04",
+  "category": "temporal_update",
+  "session_hint": "the static asset storage backend decision",
+  "question": "What's the final storage backend we're using for static assets?",
+  "turns": [
+    [
+      "user",
+      "We're storing all user-uploaded images and videos in Amazon S3 us-east-1. Standard choice, IAM already set up, CloudFront CDN pulls from it."
+    ],
+    [
+      "user",
+      "S3 bucket created, lifecycle rules configured, CloudFront distribution pointing at it. Working fine in staging."
+    ],
+    [
+      "user",
+      "Finance flagged that our S3 egress bill is projected at $40k/month once we hit target scale. That's purely data transfer costs — completely unacceptable."
+    ],
+    [
+      "user",
+      "Scrapping S3 for asset storage. Moving to Cloudflare R2 — zero egress fees and we serve directly through Cloudflare's network. S3 stays for backups only. Final decision: R2."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "r2",
+      "cloudflare"
+    ],
+    "ruled_out_contains": [
+      "s3"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

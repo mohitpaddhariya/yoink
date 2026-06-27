@@ -1,0 +1,75 @@
+{
+  "id": "lt-02",
+  "category": "long_transcript_stress",
+  "session_hint": "the Kafka consumer group lag spike investigation",
+  "question": "What was the root cause of the Kafka consumer group lag spiking on the payments topic?",
+  "turns": [
+    [
+      "user",
+      "Consumer group lag on our payments topic jumped from ~500 to over 2 million messages over a 3-hour window. No schema changes or deployments."
+    ],
+    [
+      "user",
+      "Checked broker disk I/O across all three brokers: all under 40% utilization, no throttling events in broker logs. Disk is fine."
+    ],
+    [
+      "user",
+      "Looked at inter-broker replication network — no packet loss, replication lag is under 10ms. Network between brokers is healthy."
+    ],
+    [
+      "user",
+      "Reviewed partition count: payments topic has 24 partitions, we have 8 consumer pods. Ratio is fine, no partition starvation."
+    ],
+    [
+      "user",
+      "Pulled per-consumer metrics. Seven consumers processing 800-900 messages/sec each. One consumer pod stuck at 3 messages/sec. Huge outlier."
+    ],
+    [
+      "user",
+      "Checked GC logs on the slow pod: no GC pauses over 100ms. Not a garbage collection issue."
+    ],
+    [
+      "user",
+      "Traced the slow consumer in detail: it holds partition locks while making a synchronous blocking HTTP call to the fraud-check service. That service has been timing out intermittently at 30 seconds."
+    ],
+    [
+      "user",
+      "The slow consumer periodically misses its max.poll.interval.ms heartbeat window. The group coordinator interprets this as a dead consumer and triggers a rebalance. During rebalance ALL consumers pause for 30-60 seconds while partitions are reassigned."
+    ],
+    [
+      "user",
+      "So the lag isn't just from one slow consumer — it's from repeated group rebalances triggered by that consumer, which stall all 8 consumers simultaneously. That's why lag grew so fast."
+    ],
+    [
+      "user",
+      "Root cause confirmed: a single slow consumer holding partition locks through long synchronous HTTP calls triggers repeated group rebalances, halting the entire consumer group during each reassignment cycle."
+    ],
+    [
+      "user",
+      "Fix: moved the fraud-check HTTP call outside the poll loop using an async client with a short timeout. Lag dropping now at 15k messages/sec."
+    ],
+    [
+      "user",
+      "Broker disk, network replication, and partition count were all clean. Adding a per-consumer lag alert and a max.poll.interval.ms alert. Incident closed."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "rebalance",
+      "slow consumer"
+    ],
+    "conclusion_excludes": [
+      "disk"
+    ],
+    "ruled_out_contains": [
+      "disk",
+      "partition count",
+      "garbage"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "id": "ro-10",
+  "category": "ruled_out_recall",
+  "session_hint": "the TLS handshake failure investigation on the API gateway",
+  "question": "What did we rule out when investigating TLS handshake failures on the API gateway?",
+  "turns": [
+    [
+      "user",
+      "About 2% of HTTPS connections to our API gateway fail with SSL_ERROR_RX_RECORD_TOO_LONG. It affects older Android clients specifically. First thought: the certificate chain is incomplete and clients can't build trust."
+    ],
+    [
+      "user",
+      "Ran ssllabs.com scan and openssl s_client -connect: the full chain including the intermediate certificate is served correctly and trusted by all major root stores. Chain completeness is not the issue."
+    ],
+    [
+      "user",
+      "Checked certificate expiry and the Subject Alternative Name field. Certificate is valid for 8 more months and the SAN covers both the apex domain and www subdomain. Certificate validity and SAN coverage are correct, ruling those out."
+    ],
+    [
+      "user",
+      "Root cause: the gateway is configured for TLSv1.3 only but the affected Android 6 and 7 clients only support up to TLSv1.2. No mutually supported protocol version exists so the handshake fails immediately. Added TLSv1.2 to the accepted protocol list and the affected clients connected successfully."
+    ]
+  ],
+  "expect": {
+    "ruled_out_contains": [
+      "certificate chain",
+      "certificate expiry"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

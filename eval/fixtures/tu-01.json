@@ -1,0 +1,37 @@
+{
+  "id": "tu-01",
+  "category": "temporal_update",
+  "session_hint": "the internal checkout microservice API protocol decision",
+  "question": "What did we ultimately decide on for the checkout microservice API protocol?",
+  "turns": [
+    [
+      "user",
+      "We need to design the API between the order-service and checkout-service. Initial plan is REST over HTTP/1.1 with JSON — keeps things simple and familiar."
+    ],
+    [
+      "user",
+      "Team agreed on REST. OpenAPI spec drafted, endpoint is POST /v1/checkout with a JSON body. Looks straightforward."
+    ],
+    [
+      "user",
+      "Actually scratch that — the checkout service needs to stream progress events back in real time: payment step started, fraud check running, authorised. REST doesn't fit that flow at all."
+    ],
+    [
+      "user",
+      "After evaluating options we're going with gRPC and server-side streaming. It handles the bidirectional flow cleanly and latency is measurably better than long-polling. Final decision: gRPC."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "grpc"
+    ],
+    "ruled_out_contains": [
+      "rest"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

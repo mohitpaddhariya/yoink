@@ -1,0 +1,42 @@
+{
+  "id": "de-12",
+  "category": "dead_end_suppression",
+  "session_hint": "the JWT authentication random logout investigation",
+  "question": "What was causing users to be randomly logged out in the mobile app?",
+  "turns": [
+    [
+      "user",
+      "Mobile app users are getting 401 responses randomly, 10-20 minutes after logging in. JWT tokens are issued with a 24h expiry so they shouldn't be expiring. First theory: the token blacklist Redis store is returning false positives and marking valid tokens as revoked."
+    ],
+    [
+      "user",
+      "Added debug logging to the blacklist middleware. For every affected 401, the token ID is NOT present in Redis. The blacklist is not touching these tokens. Ruling out false-positive blacklisting."
+    ],
+    [
+      "user",
+      "Second theory: CORS preflight is rejecting the Authorization header for certain API routes, causing the client to silently fail. Checked nginx CORS logs and the browser network tab for affected sessions — Authorization header is accepted on all preflight checks, no CORS rejections. Ruling out CORS."
+    ],
+    [
+      "user",
+      "Compared server clocks across services. The auth-service EC2 instance is 97 seconds ahead of the api-gateway EC2 instance — NTP sync failed on auth-service after a kernel upgrade and was never caught. JWT tokens have an iat (issued-at) claim set to auth-service time. api-gateway validates tokens with a 60-second leeway. A token issued at T+97s looks like it was issued 97 seconds in the future from api-gateway's perspective — 37 seconds outside the leeway window — so all tokens from that auth-service are rejected immediately on arrival. Fixed by forcing `chronyc makestep` on auth-service. Root cause: NTP clock drift of 97 seconds making tokens appear issued in the future."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "clock drift",
+      "ntp"
+    ],
+    "conclusion_excludes": [
+      "blacklist"
+    ],
+    "ruled_out_contains": [
+      "blacklist",
+      "cors"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

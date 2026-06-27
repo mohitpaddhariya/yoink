@@ -1,0 +1,31 @@
+{
+  "id": "ab-11",
+  "category": "abstention",
+  "session_hint": "the Elasticsearch shard refusing assignment on the events index",
+  "question": "Why did the primary shard on the events index start refusing assignment last Tuesday?",
+  "turns": [
+    [
+      "user",
+      "One primary shard on our main events index went unassigned Tuesday morning and cluster health dropped to yellow. Search kept working against the remaining shards but replication was degraded. The index is about 800GB."
+    ],
+    [
+      "user",
+      "_cluster/allocation/explain returned a disk threshold decider blocking assignment: two out of three data nodes were at 87%+ disk, above the high watermark. That's the immediate mechanical reason the shard wouldn't assign."
+    ],
+    [
+      "user",
+      "Pruned several old daily indices and got all nodes below 79%. The shard self-assigned within five minutes and cluster went green. But we're still uncomfortably close to the watermark and there's a deeper question about why we got here."
+    ],
+    [
+      "user",
+      "Our ILM policy is supposed to roll over the events index when it hits 50GB per shard, which would have kept it much smaller. The index is now 800GB across 5 shards — 160GB per shard. Either ILM isn't running on schedule or the rollover condition isn't evaluating correctly."
+    ],
+    [
+      "user",
+      "Ran out of time before I could look at the ILM explain output for this index. Disk is fine for now and the shard is assigned, but the question of whether ILM is broken or whether this was a legitimate data spike that overwhelmed the rollover trigger is completely open. Picking it up next week."
+    ]
+  ],
+  "expect": {
+    "no_conclusion": true
+  }
+}

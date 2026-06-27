@@ -1,0 +1,16 @@
+{
+  "id": "ab-07",
+  "category": "abstention",
+  "session_hint": "the Stripe duplicate webhook event processing investigation",
+  "question": "What was causing duplicate Stripe webhook events to be processed?",
+  "turns": [
+    ["user", "Our Stripe webhook handler is processing some events twice, leading to duplicate entries in the ledger. It affects about 0.3% of events. We store the event ID in a Postgres table before processing to deduplicate, but somehow duplicates are slipping through."],
+    ["user", "The deduplication logic checks for the event ID in the table before processing and inserts it after. This is a classic TOCTOU race: two concurrent webhook deliveries for the same event could both read 'not found' before either one inserts."],
+    ["user", "Stripe confirms they retry delivery on 5xx responses or timeouts after 30 seconds. Our P99 webhook processing time is 45 seconds. So if a request times out at Stripe's end while we're still processing it, they redeliver while the first is still running — that's a real path to the race."],
+    ["user", "The fix is a unique constraint on the event_id column and catching the duplicate key error on insert instead of doing a pre-check. Migration and updated handler are written and tested in staging, but staging doesn't receive real Stripe retries at meaningful volume so I couldn't actually reproduce duplicates there."],
+    ["user", "The migration is sitting in a PR. Prod deploy is blocked by a code freeze until Monday. The TOCTOU theory is the best explanation we have but it's entirely unverified — we haven't confirmed it's actually what's happening, just that it's plausible given the timing."]
+  ],
+  "expect": {
+    "no_conclusion": true
+  }
+}

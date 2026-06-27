@@ -1,0 +1,31 @@
+{
+  "id": "ab-02",
+  "category": "abstention",
+  "session_hint": "the Redis connection pool exhaustion on the auth service",
+  "question": "What was causing the periodic Redis connection pool exhaustion on the auth service?",
+  "turns": [
+    [
+      "user",
+      "The auth service hits connection pool exhaustion roughly every 4 hours. We're on Redis Cloud, pool limit is 200 and the service's ioredis pool size is 50 per instance with 4 instances — should be plenty. Restarting the pod clears it temporarily."
+    ],
+    [
+      "user",
+      "CLIENT LIST during a degraded period shows dozens of connections stuck in idle state — they're connected but not being returned to the pool. Code review of the ioredis usage doesn't show obvious leaks. maxRetriesPerRequest is null, which could keep connections open longer on retry loops."
+    ],
+    [
+      "user",
+      "Suspecting an interaction between ioredis keepalive and the Redis Cloud proxy layer. The proxy might be closing connections on its side without sending a FIN, leaving the client thinking the connection is alive. Filed a support ticket with Redis Cloud."
+    ],
+    [
+      "user",
+      "Redis Cloud support confirmed their proxy has a known issue with long-lived idle connections and TCP keepalive mismatches. They suggested setting socket_keepalive to true with a 30-second interval. We added that but they haven't confirmed it's actually the root cause."
+    ],
+    [
+      "user",
+      "It's been 20 hours with no recurrence, but that's within the noise given it sometimes goes 6+ hours fine anyway. Redis Cloud support ticket is still open. Too early to call this fixed and the actual failure mode is still unconfirmed."
+    ]
+  ],
+  "expect": {
+    "no_conclusion": true
+  }
+}

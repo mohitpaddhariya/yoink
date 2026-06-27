@@ -1,0 +1,31 @@
+{
+  "id": "ab-09",
+  "category": "abstention",
+  "session_hint": "the TLS handshake timeout investigation between gateway and backend",
+  "question": "What did we determine was causing the TLS handshake timeouts between the API gateway and backend services?",
+  "turns": [
+    [
+      "user",
+      "API gateway logs show TLS handshake timeouts to backend services at a rate of 50-100 per hour out of roughly 1 million connections. All services are in the same VPC, certs are valid and not expiring, and there's no pattern to which backend instance fails."
+    ],
+    [
+      "user",
+      "The gateway timeout is set to 10 seconds. Looking at successful handshakes, P99 is 8.5 seconds — very close to the ceiling. Raised the timeout to 15 seconds and errors dropped noticeably, but didn't go to zero."
+    ],
+    [
+      "user",
+      "Two hypotheses: (A) session ticket cache is being invalidated too frequently on the backends, forcing expensive full handshakes that bump into 10s under load; (B) asymmetric routing is sending some packets on a very long path, spiking RTT enough to push handshakes past the timeout."
+    ],
+    [
+      "user",
+      "Checked TLS session reuse rate in gateway metrics — it's 85%, which seems reasonable and doesn't point clearly to Hypothesis A. Tried to catch routing anomalies with traceroute during failure windows but the failures are too brief and transient to catch in a manual traceroute."
+    ],
+    [
+      "user",
+      "Still seeing 10-20 timeouts per hour even with the 15-second timeout. Network team reviewed routing tables and says everything looks normal. Neither hypothesis has been confirmed or eliminated. Leaving it as a known issue — no root cause."
+    ]
+  ],
+  "expect": {
+    "no_conclusion": true
+  }
+}

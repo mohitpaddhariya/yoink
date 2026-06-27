@@ -1,0 +1,35 @@
+{
+  "id": "ro-03",
+  "category": "ruled_out_recall",
+  "session_hint": "the React dashboard unnecessary re-renders investigation",
+  "question": "What approaches did we rule out when trying to fix the React dashboard's unnecessary re-renders?",
+  "turns": [
+    [
+      "user",
+      "The dashboard page re-renders every component tree on every keystroke in a search box. Profiler shows ~200ms render time. First theory: the Redux store update is touching too many slices."
+    ],
+    [
+      "user",
+      "Audited Redux: the search action only updates one slice and all selectors are memoized with reselect. Component subscriptions are minimal. Redux is not causing the cascade, ruling it out."
+    ],
+    [
+      "user",
+      "Tried wrapping the expensive child components in React.memo. Made no difference — they're still re-rendering. Checked props: they look stable but something is referentially different on every render."
+    ],
+    [
+      "user",
+      "Found the root cause: the ThemeContext.Provider is at the top of the tree and its value prop is an inline object literal — { theme, toggleTheme } — created fresh on every render of the root component. Every consumer re-renders because the reference always changes. Moved the value to a useMemo and re-renders dropped to zero."
+    ]
+  ],
+  "expect": {
+    "ruled_out_contains": [
+      "Redux",
+      "React.memo"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

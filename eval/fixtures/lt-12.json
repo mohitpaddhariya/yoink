@@ -1,0 +1,79 @@
+{
+  "id": "lt-12",
+  "category": "long_transcript_stress",
+  "session_hint": "the WebSocket silent disconnection investigation",
+  "question": "What did we conclude was causing the WebSocket connections to drop silently?",
+  "turns": [
+    [
+      "user",
+      "Users on our live collaboration feature reporting silent disconnections after periods of low activity. The app reconnects but they lose cursor positions. No errors in client logs."
+    ],
+    [
+      "user",
+      "Checked browser connection limits: Chrome allows 6 concurrent WebSocket connections per origin. Our app uses 2 at most. Not a browser concurrency limit issue."
+    ],
+    [
+      "user",
+      "Looked at SSL renegotiation as a possible cause. We use TLS 1.3 which has no renegotiation. Definitively ruled out."
+    ],
+    [
+      "user",
+      "Server-side heartbeat is implemented: we send a WebSocket ping frame every 30 seconds and expect a pong back. Client-side confirmed responding to pings. Heartbeat mechanism itself appears correct."
+    ],
+    [
+      "user",
+      "Measured exact drop times from server logs: disconnections cluster between 60 and 66 seconds after the last DATA frame (not ping/pong — actual application data). Never shorter than 60s."
+    ],
+    [
+      "user",
+      "That 60-second boundary is suspicious. Checked our AWS Application Load Balancer idle_timeout setting: it's set to 60 seconds."
+    ],
+    [
+      "user",
+      "AWS docs say the ALB idle timeout measures time since the last TCP segment in either direction. Ping/pong frames do travel as TCP segments so in theory they should reset it."
+    ],
+    [
+      "user",
+      "Ran controlled test: established WebSocket, sent only ping/pong every 30s, no application data. Connection dropped at exactly 60s. Ping frames are NOT resetting the ALB idle timer for WebSocket connections in our configuration."
+    ],
+    [
+      "user",
+      "Further testing confirmed the ALB closes the WebSocket connection after 60 seconds with no application-level data frame, regardless of ping/pong activity. This is a known ALB behavior with WebSockets — it specifically requires data frames, not just keepalive frames, to reset the idle timer."
+    ],
+    [
+      "user",
+      "Root cause: ALB idle timeout (60s) silently closes WebSocket connections that exchange only ping/pong frames but no application data, because the ALB does not count WebSocket ping/pong as activity for the idle timeout."
+    ],
+    [
+      "user",
+      "Fix options: increase ALB idle timeout for the WebSocket target group, or send a lightweight application data frame alongside the ping. Chose to increase ALB idle timeout to 300 seconds on the WebSocket target group."
+    ],
+    [
+      "user",
+      "Deployed. Tested idle connections over 6 hours. Zero silent disconnections. Collaboration feature stable."
+    ],
+    [
+      "user",
+      "Browser connection limits and TLS renegotiation definitively ruled out. Heartbeat was correct in intent but insufficient given ALB behavior."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "idle timeout",
+      "ping"
+    ],
+    "conclusion_excludes": [
+      "SSL"
+    ],
+    "ruled_out_contains": [
+      "browser connection limits",
+      "SSL",
+      "renegotiation"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

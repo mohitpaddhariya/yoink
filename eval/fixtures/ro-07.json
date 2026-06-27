@@ -1,0 +1,35 @@
+{
+  "id": "ro-07",
+  "category": "ruled_out_recall",
+  "session_hint": "the Stripe webhook 400 error investigation",
+  "question": "What did we rule out when debugging the Stripe webhook 400 errors?",
+  "turns": [
+    [
+      "user",
+      "Stripe is retrying payment_intent.succeeded webhooks and logging 400 responses from our endpoint. First suspicion: our webhook signature validation is broken — maybe a body parser is consuming the raw body before we can verify the signature."
+    ],
+    [
+      "user",
+      "Confirmed we read body as raw Buffer before any middleware runs. Ran replayed events from the Stripe dashboard — signature validation passes every time locally and in staging. Signature validation is not the issue, ruling it out."
+    ],
+    [
+      "user",
+      "Thought we might return 400 on duplicate events — maybe our idempotency guard has a bug. Checked the code: duplicate detection short-circuits and returns 200 immediately. Not the cause."
+    ],
+    [
+      "user",
+      "Root cause: our handler synchronously calls a downstream inventory service that takes 35–40 seconds to respond. Stripe requires a 200 within 30 seconds or marks the delivery failed. Moved the downstream call to a background job queue, return 200 immediately, and Stripe stopped retrying."
+    ]
+  ],
+  "expect": {
+    "ruled_out_contains": [
+      "signature validation",
+      "duplicate events"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

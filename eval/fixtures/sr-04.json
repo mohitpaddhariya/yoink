@@ -1,0 +1,16 @@
+{
+  "id": "sr-04",
+  "category": "session_resolution",
+  "session_hint": "the react chat showing old messages after reconnect",
+  "question": "What did we conclude was causing the stale data after WebSocket reconnection in React?",
+  "turns": [
+    ["user", "Our React chat component keeps showing messages from before a WebSocket disconnect even after the socket reconnects and emits fresh events. Users see duplicate or out-of-date message lists."],
+    ["user", "The onmessage handler inside useEffect closes over the initial messages state value from mount time. On reconnect the socket fires events but the handler appends to the stale snapshot of messages, not the current array."],
+    ["user", "Confirmed stale closure. The useEffect dependency array was empty [], so the handler was never recreated with the updated state value. Fix: use the functional updater form of setState — setMessages(prev => [...prev, newMsg]) — so the handler never reads messages from its closure and always operates on the latest state. That way reconnects append correctly regardless of how stale the handler's captured reference is."]
+  ],
+  "expect": {
+    "conclusion_contains": ["stale closure", "dependency array", "functional updater"],
+    "answer_confidence_in": ["high", "medium"],
+    "no_conclusion": false
+  }
+}

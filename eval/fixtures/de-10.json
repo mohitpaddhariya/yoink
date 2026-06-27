@@ -1,0 +1,42 @@
+{
+  "id": "de-10",
+  "category": "dead_end_suppression",
+  "session_hint": "the Kubernetes pod DNS resolution timeout investigation",
+  "question": "What was causing intermittent DNS resolution timeouts in Kubernetes pods?",
+  "turns": [
+    [
+      "user",
+      "Pods in our data-processing namespace are experiencing 2-3 second DNS resolution delays for external hostnames like api.stripe.com and s3.amazonaws.com. About 15% of lookups are affected. First suspect: CoreDNS pods are under-resourced and getting OOMKilled."
+    ],
+    [
+      "user",
+      "Checked CoreDNS pods: 0 restarts in 7 days, memory at 45Mi against a 170Mi limit, CPU at 3m against 100m limit. CoreDNS metrics show 99th percentile latency of 4ms for cache hits. CoreDNS itself is healthy. Ruling out CoreDNS resource exhaustion."
+    ],
+    [
+      "user",
+      "Second suspect: the upstream resolver (8.8.8.8 configured in CoreDNS Corefile) is intermittently slow. SSHed to the node and ran `dig @8.8.8.8 api.stripe.com` 50 times — all resolved in under 30ms, zero failures. Upstream resolver is fine. Ruling that out."
+    ],
+    [
+      "user",
+      "Inspected /etc/resolv.conf inside a pod: ndots:5 is set (Kubernetes default). For api.stripe.com (2 dots, below ndots threshold of 5), the resolver first tries api.stripe.com.data-processing.svc.cluster.local, then api.stripe.com.svc.cluster.local, then api.stripe.com.cluster.local, then api.stripe.com.eu-west-1.compute.internal — all failing with NXDOMAIN (500ms timeout each) — before finally attempting the absolute name. That's up to 2.5 seconds of failed search domain lookups. Fixed by adding ndots:1 in the pod's dnsConfig. External FQDNs now resolve in under 30ms. Root cause: ndots:5 default causing multiple failed search domain lookups before resolving external names."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "ndots",
+      "search domain"
+    ],
+    "conclusion_excludes": [
+      "coredns"
+    ],
+    "ruled_out_contains": [
+      "coredns",
+      "upstream resolver"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

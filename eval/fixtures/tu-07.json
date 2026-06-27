@@ -1,0 +1,37 @@
+{
+  "id": "tu-07",
+  "category": "temporal_update",
+  "session_hint": "the database choice for the edge function data layer",
+  "question": "What database did we end up choosing for the edge functions?",
+  "turns": [
+    [
+      "user",
+      "Edge functions need a data layer for user preferences and feature-flag overrides. Initial plan: connect to the existing Postgres cluster in us-east-1 via PgBouncer."
+    ],
+    [
+      "user",
+      "Postgres client configured, connection pool set to 20 per pod. Deployed to staging, queries working."
+    ],
+    [
+      "user",
+      "Latency numbers are terrible — the edge function running in Frankfurt is seeing 180ms just for the Postgres round-trip to us-east-1. That defeats the entire purpose of running at the edge."
+    ],
+    [
+      "user",
+      "Scrapping Postgres for the edge layer. Going with SQLite via Turso (libSQL) — distributed read replicas co-located with edge nodes, sub-5ms reads in every region. Postgres stays authoritative for writes and the main app. Final decision: SQLite at the edge."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "sqlite"
+    ],
+    "ruled_out_contains": [
+      "postgres"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

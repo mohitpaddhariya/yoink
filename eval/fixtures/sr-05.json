@@ -1,0 +1,16 @@
+{
+  "id": "sr-05",
+  "category": "session_resolution",
+  "session_hint": "the modal not rendering above the navbar",
+  "question": "What did we conclude was causing the modal to appear behind the fixed navbar?",
+  "turns": [
+    ["user", "Our React modal with z-index: 9999 renders behind the fixed top navbar (z-index: 100). The backdrop covers the page body fine, but the navbar floats on top of everything including the modal."],
+    ["user", "The modal mounts inside a wrapper div that has a CSS animation applied using transform: translateY(-10px). I recall that CSS transforms can affect stacking."],
+    ["user", "Root cause: the parent container's transform property establishes a new CSS stacking context. Even though the modal has z-index: 9999, it is stacked relative only to siblings within that local context — not against the fixed navbar which lives outside it. Fix: render the modal through a React portal targeting document.body so it escapes the transformed ancestor and its z-index competes at the root stacking context."]
+  ],
+  "expect": {
+    "conclusion_contains": ["stacking context", "transform", "portal"],
+    "answer_confidence_in": ["high", "medium"],
+    "no_conclusion": false
+  }
+}

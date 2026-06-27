@@ -1,0 +1,42 @@
+{
+  "id": "de-02",
+  "category": "dead_end_suppression",
+  "session_hint": "the Redis cache hit rate drop investigation",
+  "question": "What was the root cause of the Redis cache hit rate dropping from 94% to 31%?",
+  "turns": [
+    [
+      "user",
+      "Cache hit rate on our Redis 7.0 cluster dropped from 94% to 31% overnight. First theory: allkeys-lru eviction policy is kicking out hot keys because maxmemory is too close to capacity."
+    ],
+    [
+      "user",
+      "Checked Redis INFO stats — used_memory is 2.1GB against an 8GB maxmemory limit. The eviction policy hasn't touched anything; evicted_keys is 0. Not an eviction issue, ruling that out."
+    ],
+    [
+      "user",
+      "Second theory: the new product-catalog service deployed yesterday is using the same key prefix and clobbering session keys. Ran SCAN with COUNT 1000 and spot-checked — namespaces are clean, no collisions. Ruling out namespace collision."
+    ],
+    [
+      "user",
+      "Found it: the config push on Tuesday changed session key TTL from 86400 seconds (24h) to 300 seconds (5 minutes) in session_store.yml. Keys expire before most users return, so every request is a cache miss. Reverting TTL to 86400 restored hit rate to 93%. Root cause: TTL misconfigured to 300 seconds (5 minutes)."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "ttl",
+      "300 seconds"
+    ],
+    "conclusion_excludes": [
+      "eviction"
+    ],
+    "ruled_out_contains": [
+      "eviction policy",
+      "namespace collision"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

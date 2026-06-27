@@ -1,0 +1,67 @@
+{
+  "id": "lt-09",
+  "category": "long_transcript_stress",
+  "session_hint": "the gRPC deadline exceeded error spike investigation",
+  "question": "What was the root cause of the gRPC deadline exceeded errors?",
+  "turns": [
+    [
+      "user",
+      "Root cause nailed in the first trace: our gRPC clients create a fresh context.Background() for each downstream call instead of propagating the incoming request context. Upstream callers impose a 5-second deadline. Downstream hops each start a new infinite deadline. The full call chain takes 7+ seconds but each hop thinks it has unlimited time. Upstream times out, retries, creates more load, all while downstream keeps processing the first attempt."
+    ],
+    [
+      "user",
+      "Checked serialization overhead as a possible cumulative contributor: proto marshalling across all hops measures under 1ms total. Not contributing to the 7-second total."
+    ],
+    [
+      "user",
+      "Looked at mTLS overhead for our internal gRPC mesh — handshakes complete in under 3ms and are cached. TLS is not the issue."
+    ],
+    [
+      "user",
+      "Suspected load balancer timeout misconfiguration: checked ALB idle timeout — set to 60 seconds, well above the 5-second upstream deadline. Ruled out."
+    ],
+    [
+      "user",
+      "Confirmed the deadline propagation gap by adding logging at each hop: incoming deadline shows '4.8s remaining' but the downstream call context logs 'no deadline'. The context is being discarded and replaced with context.Background() in the client factory."
+    ],
+    [
+      "user",
+      "This also explains why retries compound the problem — upstream retries after 5s, but the first request is still running downstream consuming resources. Under load this creates a retry storm."
+    ],
+    [
+      "user",
+      "Fix: thread the incoming ctx through all downstream gRPC calls using ctx.WithDeadline or just passing ctx directly. One-line change per service in the client factory."
+    ],
+    [
+      "user",
+      "Deployed to staging. Tested with a simulated 5s upstream deadline: cancellation now propagates through the full chain within 50ms of deadline expiry. No wasted downstream work."
+    ],
+    [
+      "user",
+      "p99 latency improved by 40% in staging even before load testing — fewer concurrent requests since upstream retries cancel correctly now."
+    ],
+    [
+      "user",
+      "Serialization, mTLS, and ALB timeout all ruled out. Deadline propagation was the only real issue. Adding a static analysis rule to flag context.Background() inside gRPC handler functions."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "deadline",
+      "downstream"
+    ],
+    "conclusion_excludes": [
+      "serialization"
+    ],
+    "ruled_out_contains": [
+      "serialization",
+      "mTLS",
+      "load balancer timeout"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

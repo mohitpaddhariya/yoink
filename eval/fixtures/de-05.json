@@ -1,0 +1,42 @@
+{
+  "id": "de-05",
+  "category": "dead_end_suppression",
+  "session_hint": "the Core Web Vitals CLS score regression investigation",
+  "question": "What did we conclude was causing the CLS score regression on the checkout page?",
+  "turns": [
+    [
+      "user",
+      "Checkout page CLS score jumped from 0.04 to 0.38 after last Thursday's deploy. Google Search Console flagged it. First theory: product images are missing explicit width and height attributes, causing layout shifts as they load."
+    ],
+    [
+      "user",
+      "Audited all <img> tags on the checkout page — every image has explicit width and height set. WebPageTest filmstrip confirms images don't cause any visible shift. Ruling out missing image dimensions."
+    ],
+    [
+      "user",
+      "Second theory: the new Lato web font we added is causing FOUT that shifts text blocks down. Already have font-display: swap. Tried font-display: block and preloading the woff2 — CLS score unchanged at 0.37. Ruling out web font as the cause."
+    ],
+    [
+      "user",
+      "Used WebPageTest CLS breakdown overlay — the shift happens at T+2.8s and originates from a div injected by the OneTrust cookie consent script. The banner is 72px tall with no reserved space in the layout. Replacing the script tag with an async load and reserving 72px via min-height on the banner container dropped CLS to 0.02. Root cause: third-party cookie consent banner injected dynamically with no pre-reserved space."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "cookie consent",
+      "reserved"
+    ],
+    "conclusion_excludes": [
+      "font"
+    ],
+    "ruled_out_contains": [
+      "image",
+      "web font"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

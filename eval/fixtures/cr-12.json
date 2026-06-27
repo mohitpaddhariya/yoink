@@ -1,0 +1,17 @@
+{
+  "id": "cr-12",
+  "category": "conclusion_recall",
+  "session_hint": "the analytics dashboard memory leak investigation",
+  "question": "What did we conclude was causing the memory leak on the analytics dashboard page?",
+  "turns": [
+    ["user", "The analytics dashboard tab leaks memory steadily — Chrome Task Manager shows it climbing from 80MB to 600MB+ if left open 30 minutes. Users report the page becoming sluggish over time."],
+    ["user", "Took Chrome heap snapshots at 5 minutes and 20 minutes. The retained size of ResizeObserver instances is growing linearly — each snapshot shows about 200 more than the previous."],
+    ["user", "Found the cause: ChartPanel creates a new ResizeObserver on mount and attaches it to the chart container element, but the useEffect cleanup function is missing entirely. There's no disconnect() call on unmount. Every time the user switches between dashboard tabs, ChartPanel unmounts but its ResizeObserver stays alive, keeping a reference to the detached DOM node."],
+    ["user", "Added resizeObserver.disconnect() in the useEffect return callback. Memory stays flat now across tab switches. Root cause: ResizeObserver not disconnected on component unmount, accumulating detached DOM references indefinitely."]
+  ],
+  "expect": {
+    "conclusion_contains": ["resizeobserver", "disconnect"],
+    "answer_confidence_in": ["high", "medium"],
+    "no_conclusion": false
+  }
+}

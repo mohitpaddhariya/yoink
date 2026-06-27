@@ -1,0 +1,67 @@
+{
+  "id": "lt-05",
+  "category": "long_transcript_stress",
+  "session_hint": "the Stripe webhook signature validation failure investigation",
+  "question": "What did we conclude was causing Stripe webhook signature validation to fail?",
+  "turns": [
+    [
+      "user",
+      "Stripe webhooks started failing signature validation yesterday around 14:00 UTC. All events rejected with 400. Customer subscriptions not updating."
+    ],
+    [
+      "user",
+      "Checked Stripe dashboard to see if our webhook signing secret was auto-rotated. It was not. Same secret in our secrets manager, unchanged."
+    ],
+    [
+      "user",
+      "Ruled out IP allowlisting — we do not restrict inbound IPs on the webhook endpoint. Not a network access issue."
+    ],
+    [
+      "user",
+      "Checked whether Stripe rate-limited us: dashboard shows no rate limit events, no 429s from Stripe's side. Ruled that out."
+    ],
+    [
+      "user",
+      "Root cause found: last Thursday we merged a PR that added express.json() middleware globally, including to the webhook route. Stripe computes its signature over the raw request bytes. Our middleware reads, parses, and re-serializes the JSON body before the webhook handler sees it. The re-serialized body has different whitespace and key ordering — the bytes differ from what Stripe signed. Signature mismatch is guaranteed on every request."
+    ],
+    [
+      "user",
+      "The fix is to bypass express.json() for the /webhooks/stripe route and use express.raw({ type: 'application/json' }) there instead, preserving the raw body."
+    ],
+    [
+      "user",
+      "Applied the fix to the webhook router. Deployed to staging and sent a test event from Stripe. Signature validates correctly."
+    ],
+    [
+      "user",
+      "Deployed to production. Webhooks processing cleanly. Replayed the 26-hour backlog of failed events via Stripe dashboard replay."
+    ],
+    [
+      "user",
+      "Confirmed secret rotation was not the cause — secret has been consistent throughout the incident."
+    ],
+    [
+      "user",
+      "Added an integration test that posts a Stripe-signed payload through the full Express middleware stack and asserts 200 OK. Closing the incident."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "middleware",
+      "raw body"
+    ],
+    "conclusion_excludes": [
+      "allowlist"
+    ],
+    "ruled_out_contains": [
+      "rotation",
+      "IP allowlist",
+      "rate limit"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

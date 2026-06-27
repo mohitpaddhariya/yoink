@@ -1,0 +1,17 @@
+{
+  "id": "cr-11",
+  "category": "conclusion_recall",
+  "session_hint": "the JWT token validation failure investigation",
+  "question": "What did we conclude was causing intermittent JWT token validation failures in the auth service?",
+  "turns": [
+    ["user", "About 0.5% of authenticated API requests are returning 401 Unauthorized. The tokens are freshly issued — some fail validation within seconds of creation. Running auth-service v2.3 on three EC2 instances."],
+    ["user", "Checked the JWT validation error logs: the error is 'token is not valid yet'. The nbf (not before) claim check is failing. Our token-service sets nbf to the exact current time at issuance."],
+    ["user", "Compared system clocks: token-service is 87 seconds ahead of auth-service-2. When auth-service-2 validates a token issued by token-service, its local time is still before the token's nbf, so it rejects the token as not yet valid."],
+    ["user", "The NTP daemon on auth-service-2 had crashed and the clock drifted over several days. Restarted NTP, clock re-synced, failures stopped. Root cause: NTP clock drift on auth-service-2 causing nbf validation to reject freshly issued tokens."]
+  ],
+  "expect": {
+    "conclusion_contains": ["clock drift", "nbf"],
+    "answer_confidence_in": ["high", "medium"],
+    "no_conclusion": false
+  }
+}

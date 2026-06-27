@@ -1,0 +1,37 @@
+{
+  "id": "tu-10",
+  "category": "temporal_update",
+  "session_hint": "the message broker decision for the analytics ingestion pipeline",
+  "question": "What did we end up using as the message broker for the analytics pipeline?",
+  "turns": [
+    [
+      "user",
+      "Building an analytics ingestion pipeline for client SDK events. Need a buffer between ingest and processing. Planning to use Kafka — high throughput, replay capability, partitioning per event type."
+    ],
+    [
+      "user",
+      "Kafka cluster spec'd: 3 brokers, replication factor 3, 7-day retention. Topic partitioning designed. Looks solid on paper."
+    ],
+    [
+      "user",
+      "Ops team reviewed the plan and flagged zero Kafka expertise in-house. No one to tune JVM heap, manage broker upgrades, or debug consumer lag at 3am. We're fully on AWS."
+    ],
+    [
+      "user",
+      "Changed our minds: dropping Kafka, going with SQS and SNS fan-out instead. Fully managed, zero broker ops, integrates natively with our Lambda processors. Replay via S3 archive if needed. Final decision: SQS."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "sqs"
+    ],
+    "ruled_out_contains": [
+      "kafka"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

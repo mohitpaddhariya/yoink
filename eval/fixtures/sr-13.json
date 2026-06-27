@@ -1,0 +1,16 @@
+{
+  "id": "sr-13",
+  "category": "session_resolution",
+  "session_hint": "the grpc timeout cascade across services",
+  "question": "What did we conclude was causing cascading timeouts in the gRPC service mesh?",
+  "turns": [
+    ["user", "Our microservices are cascading timeouts. The edge service sets a 5-second gRPC deadline on inbound requests, but downstream services run to their own 30-second defaults and never cancel when the edge budget expires."],
+    ["user", "We have a shared middleware layer that handles auth and logging. Tracing through it I see it creates a new context for each downstream call rather than piping the incoming one through."],
+    ["user", "Root cause: the middleware calls context.Background() to create a fresh context for downstream gRPC calls instead of passing the original request context. A new context has no deadline, so the propagated deadline from the edge service is silently discarded. Downstream calls run to their own independent timeouts, and the edge service times out while downstream work continues wastefully. Fix: thread the incoming ctx through every middleware handler and downstream call so the 5-second deadline propagates and cancels the entire call tree when the edge budget expires."]
+  ],
+  "expect": {
+    "conclusion_contains": ["context.Background()", "deadline", "middleware"],
+    "answer_confidence_in": ["high", "medium"],
+    "no_conclusion": false
+  }
+}

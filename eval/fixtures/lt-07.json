@@ -1,0 +1,27 @@
+{
+  "id": "lt-07",
+  "category": "long_transcript_stress",
+  "session_hint": "the Elasticsearch aggregation query slowdown investigation",
+  "question": "What was the root cause of the Elasticsearch aggregation queries slowing down?",
+  "turns": [
+    ["user", "Aggregation queries on our search cluster jumped from 200ms p99 to 8 seconds. Happened right after an index mapping update deployed Monday."],
+    ["user", "Checked cluster shard distribution: all data nodes have roughly equal primary and replica shard counts via _cat/shards. No hot shards, no imbalance. Not the issue."],
+    ["user", "Heap usage on all nodes is under 60% of the 30GB JVM heap. GC pauses averaging 80ms per _nodes/stats. Not a JVM memory pressure issue."],
+    ["user", "Tried increasing index.refresh_interval from 1s to 30s to reduce indexing pressure during off-peak. Aggregation query times unchanged. Refresh interval not the cause."],
+    ["user", "Ran the Profile API on a slow aggregation. Fetch phase on the aggregation field takes 97% of query time. Before Monday it was under 10%."],
+    ["user", "Diffed the old and new index mappings. Old mapping had doc_values: true on the category_id field we aggregate on. The new mapping omitted it entirely, so it defaulted to false."],
+    ["user", "Without doc_values, Elasticsearch can't use the columnar BKD structure for aggregations. It falls back to loading fielddata into heap on demand — scanning the entire field from inverted index on every aggregation request."],
+    ["user", "Also found indices.fielddata.cache.size set to '0b' in elasticsearch.yml, effectively disabling the fielddata cache. So every aggregation does a full field scan with no caching benefit."],
+    ["user", "Root cause: the mapping change removed doc_values from the aggregation field, forcing ES to use uncached fielddata loading on every query. Two compounding problems — no doc_values and no fielddata cache — made every aggregation a full field scan."],
+    ["user", "Interim fix: set fielddata cache to 20% of heap. Aggregations drop to 1.8s. Real fix requires reindexing with doc_values re-enabled."],
+    ["user", "Reindex completed after 4 hours. Aggregation queries back to 175ms. Heap pressure also reduced."],
+    ["user", "Shard distribution, JVM GC, and refresh interval were all clean. Added doc_values: true to our index template defaults and a mapping diff check to the deploy pipeline."]
+  ],
+  "expect": {
+    "conclusion_contains": ["doc_values", "fielddata"],
+    "conclusion_excludes": ["shard"],
+    "ruled_out_contains": ["shard", "GC", "refresh interval"],
+    "answer_confidence_in": ["high", "medium"],
+    "no_conclusion": false
+  }
+}

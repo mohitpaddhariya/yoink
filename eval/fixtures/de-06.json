@@ -1,0 +1,42 @@
+{
+  "id": "de-06",
+  "category": "dead_end_suppression",
+  "session_hint": "the GitHub Actions CI build time investigation",
+  "question": "What was causing the CI pipeline builds to take 45 minutes instead of 12?",
+  "turns": [
+    [
+      "user",
+      "Our GitHub Actions CI pipeline ballooned from 12 minutes to 45 minutes over the past two weeks. First hypothesis: the Jest test suite isn't parallelized enough across runners."
+    ],
+    [
+      "user",
+      "Checked test step timing — tests run across 8 shards and finish in 6 minutes total. Shard utilization is even. Adding more shards won't help. Ruling out test parallelization as the bottleneck."
+    ],
+    [
+      "user",
+      "Second hypothesis: Docker layer cache is being busted on every run, forcing a full image rebuild. Checked the 'Use Cache' step output — layer cache hit rate is 94%, only the final app layer rebuilds. Docker build takes 3 minutes, same as before. Ruling out Docker layer cache."
+    ],
+    [
+      "user",
+      "Timed each step individually. The `npm ci` step takes 28 of the 45 minutes. The node_modules directory is never cached between pipeline runs — every build downloads all 1,847 packages from npm from scratch. Added actions/cache@v3 keyed on package-lock.json hash; cache hit brings npm ci down from 28 minutes to 8 seconds. That single change put total build time back to 11 minutes. Root cause: node_modules not cached between CI runs, npm ci running a full install on every build."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "node_modules",
+      "npm ci"
+    ],
+    "conclusion_excludes": [
+      "shard"
+    ],
+    "ruled_out_contains": [
+      "shard",
+      "docker layer"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "id": "sr-10",
+  "category": "session_resolution",
+  "session_hint": "the mobile tls handshake failure on older android",
+  "question": "What did we conclude was causing TLS handshake failures specifically on Android 7 devices?",
+  "turns": [
+    ["user", "Our HTTPS API returns CERTIFICATE_VERIFY_FAILED for Android 7 and older clients. iOS and desktop browsers work fine. This started after we renewed our TLS certificate last week."],
+    ["user", "We switched certificate authorities during the renewal. The new CA's root is trusted on modern Android and iOS, but some older Android versions may not have it. Also, the new CA requires serving an intermediate certificate."],
+    ["user", "Root cause: our nginx ssl_certificate file only contains the leaf certificate — the intermediate certificate from the new CA is absent. Modern browsers and iOS silently fetch missing intermediates using the AIA (Authority Information Access) extension in the cert. Android 7 and below do not implement AIA fetching and require the server to present the full chain. Fix: concatenate the intermediate certificate below the leaf cert in the nginx ssl_certificate PEM file and reload nginx."]
+  ],
+  "expect": {
+    "conclusion_contains": ["intermediate certificate", "AIA", "Android 7"],
+    "answer_confidence_in": ["high", "medium"],
+    "no_conclusion": false
+  }
+}

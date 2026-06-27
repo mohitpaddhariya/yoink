@@ -22,6 +22,20 @@ class Fixture:
     question: str
     turns: list[tuple[str, str]]
     expect: dict
+    category: str | None = None  # one of the 7 benchmark categories; None for legacy fixtures
+    session_hint: str | None = None  # fuzzy hint for the session_resolution category
+
+
+_LIST_EXPECT_KEYS = ("conclusion_contains", "conclusion_excludes", "ruled_out_contains", "answer_confidence_in")
+
+
+def _coerce_expect(expect: dict) -> dict:
+    # A bare string where a list is expected ("bloat" vs ["bloat"]) would iterate char-by-char
+    # in grade() and silently always-fail — coerce it to a one-element list at the boundary.
+    for key in _LIST_EXPECT_KEYS:
+        if isinstance(expect.get(key), str):
+            expect[key] = [expect[key]]
+    return expect
 
 
 def load_fixtures(directory: Path = FIXTURES_DIR) -> list[Fixture]:
@@ -34,7 +48,9 @@ def load_fixtures(directory: Path = FIXTURES_DIR) -> list[Fixture]:
                 id=data.get("id", path.stem),
                 question=data["question"],
                 turns=[tuple(turn) for turn in data["turns"]],
-                expect=data.get("expect", {}),
+                expect=_coerce_expect(data.get("expect", {})),
+                category=data.get("category"),
+                session_hint=data.get("session_hint"),
             )
         )
     return fixtures

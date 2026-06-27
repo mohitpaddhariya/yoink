@@ -1,0 +1,42 @@
+{
+  "id": "de-07",
+  "category": "dead_end_suppression",
+  "session_hint": "the Kubernetes Java service OOMKilled pod investigation",
+  "question": "What was the root cause of the Java service pods being OOMKilled in Kubernetes?",
+  "turns": [
+    [
+      "user",
+      "Our Spring Boot order-processor pods on Kubernetes keep getting OOMKilled. They're configured with a 512Mi memory limit. First thought: 512Mi is simply too low for the workload — the service handles 500 req/s at peak."
+    ],
+    [
+      "user",
+      "Bumped memory limit to 1Gi, then 2Gi. Pods ran longer but still OOMKilled after ~2 hours at each limit. Increasing the limit doesn't permanently fix it. Ruling out memory limit being inherently too low."
+    ],
+    [
+      "user",
+      "Second thought: a genuine memory leak in the request handler — some unbounded cache map growing without bound. Attached JFR and took heap dumps at 15-minute intervals. Heap is stable at 800MB with normal GC cycles. No leak visible in application code. Ruling out application-level memory leak."
+    ],
+    [
+      "user",
+      "Ran `kubectl exec` into a pod and compared /proc/meminfo against `jcmd <pid> VM.native_memory`. The JVM is consuming 3.8GB of native memory total — heap, off-heap NIO buffers, metaspace, thread stacks. The JVM's default ergonomics set -Xmx to 25% of host RAM (the node has 16GB) = 4GB, completely ignoring the container memory limit. Added -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 to JVM flags. Heap now respects the container limit and pods have been stable for 48 hours. Root cause: JVM sizing heap from host RAM, not container limit; fixed with UseContainerSupport."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "usecontainersupport",
+      "host ram"
+    ],
+    "conclusion_excludes": [
+      "leak"
+    ],
+    "ruled_out_contains": [
+      "memory limit",
+      "memory leak"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

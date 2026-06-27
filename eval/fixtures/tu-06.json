@@ -1,0 +1,37 @@
+{
+  "id": "tu-06",
+  "category": "temporal_update",
+  "session_hint": "the payment status update mechanism for the billing service",
+  "question": "What's the final mechanism for receiving payment status updates from the processor?",
+  "turns": [
+    [
+      "user",
+      "For payment status updates from our processor, the plan was to poll their REST API every 30 seconds per open transaction and update our order state accordingly."
+    ],
+    [
+      "user",
+      "Polling loop implemented in the billing-worker. Batches up to 50 transaction IDs per request to stay within their API limits. Works in staging."
+    ],
+    [
+      "user",
+      "Realized that at scale — thousands of open transactions — we'd be firing hundreds of API calls per minute. Processor told us they'd hard-throttle us above 100 req/min. Polling can't scale."
+    ],
+    [
+      "user",
+      "Changed our minds entirely. Moving to webhooks — processor pushes status changes to our /payments/webhook endpoint the moment they happen. Far lower call volume, near real-time updates. Polling loop gets deleted. Final decision: webhooks."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "webhook"
+    ],
+    "ruled_out_contains": [
+      "poll"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

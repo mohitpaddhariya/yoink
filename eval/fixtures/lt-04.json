@@ -1,0 +1,26 @@
+{
+  "id": "lt-04",
+  "category": "long_transcript_stress",
+  "session_hint": "the TLS handshake failure investigation on mobile clients",
+  "question": "What was the root cause of the TLS handshake failures on mobile clients?",
+  "turns": [
+    ["user", "About 15% of mobile users reporting SSL connection errors on login. Desktop, curl, and Postman all succeed. Started after cert renewal last month."],
+    ["user", "First theory: cipher suite mismatch. Server supports all modern suites including ECDHE-RSA-AES256-GCM-SHA384. TLS 1.2 and 1.3 both enabled. No reason mobile should reject this."],
+    ["user", "Tried disabling OCSP stapling on nginx and reloading. Failure rate unchanged on mobile. OCSP not the issue, ruled out."],
+    ["user", "Checked SNI configuration — server returns the correct leaf certificate for each hostname when tested with openssl s_client -servername. SNI is working, ruled that out."],
+    ["user", "Captured a Wireshark trace from a failing Android device. Handshake aborts with a TLS alert after the server sends its certificate chain. Client rejects immediately."],
+    ["user", "Desktop browsers and modern Android (8+) succeed. Failing clients are all Android 6 and 7. These versions use an older system trust store."],
+    ["user", "Ran openssl verify on our certificate chain from a simulated Android 6 trust store perspective. Got: 'unable to get local issuer certificate'. Chain validation fails."],
+    ["user", "Found the actual bug: when the cert was renewed last month, the engineer updated only the leaf certificate file in /etc/nginx/ssl/cert.pem. The intermediate certificate file was not updated and still references the old intermediate. nginx is serving an incomplete chain — leaf cert only."],
+    ["user", "Desktop clients and Android 8+ silently fetch the missing intermediate via the Authority Information Access (AIA) extension. Android 6/7 does not follow AIA and requires the server to send the complete chain."],
+    ["user", "Root cause: the intermediate certificate was missing from the nginx TLS bundle after the renewal. Old Android clients that do not support AIA fetching fail chain validation."],
+    ["user", "Fix: concatenate the renewed leaf cert and the correct intermediate into /etc/nginx/ssl/cert.pem, reload nginx. Mobile TLS errors drop to zero immediately."]
+  ],
+  "expect": {
+    "conclusion_contains": ["intermediate certificate", "missing"],
+    "conclusion_excludes": ["OCSP"],
+    "ruled_out_contains": ["cipher suite", "OCSP", "SNI"],
+    "answer_confidence_in": ["high", "medium"],
+    "no_conclusion": false
+  }
+}

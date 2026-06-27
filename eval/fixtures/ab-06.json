@@ -1,0 +1,31 @@
+{
+  "id": "ab-06",
+  "category": "abstention",
+  "session_hint": "the Kubernetes api-server pod OOMKill investigation",
+  "question": "What was consuming the memory that caused the OOMKill events on the api-server pods?",
+  "turns": [
+    [
+      "user",
+      "The api-server pods keep getting OOMKilled every 12-24 hours. Memory limit is 512Mi. Each pod has a main app container and an Envoy sidecar. kubectl top right before a kill shows app at ~380Mi and sidecar at ~90Mi — that's 470Mi combined, technically under the limit, but the kill still happens."
+    ],
+    [
+      "user",
+      "There must be a sudden burst that exceeds the limit before our 60-second scrape interval catches it. Added a Prometheus exporter scraping at 10-second intervals. Over the next 6 hours the main app slowly climbs while Envoy stays flat around 90Mi."
+    ],
+    [
+      "user",
+      "The app climb rate over 6 hours would put it at the limit in roughly 20 hours, not 12. So either the rate accelerates, or there's an additional burst source. Checked for request spikes before OOMKill events — found a correlation with large file upload requests that route through the app."
+    ],
+    [
+      "user",
+      "But two of the last five OOMKills weren't preceded by any notable upload activity. So uploads might be a contributing factor but can't be the sole cause. Envoy is still theoretically blameless from the slow metrics but a burst wouldn't show in 10-second averages."
+    ],
+    [
+      "user",
+      "By the time a pod is killed we can't inspect it — container is gone before we can exec in or pull a heap dump. Both the main app (possibly uploads-triggered) and Envoy (possibly burst-based) are still suspects. No firm answer without a pre-kill heap dump, and we haven't set that up yet."
+    ]
+  ],
+  "expect": {
+    "no_conclusion": true
+  }
+}

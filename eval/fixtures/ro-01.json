@@ -1,0 +1,35 @@
+{
+  "id": "ro-01",
+  "category": "ruled_out_recall",
+  "session_hint": "the Redis write latency spikes investigation",
+  "question": "What did we rule out when investigating the Redis write latency spikes?",
+  "turns": [
+    [
+      "user",
+      "Redis SETEX calls are spiking to 80ms p99 every few minutes. My first suspicion is network latency between the app servers and Redis — we're in different AZs."
+    ],
+    [
+      "user",
+      "Measured TCP RTT between app and Redis: it's a steady 0.4ms. Completely rules out cross-AZ network latency as the cause."
+    ],
+    [
+      "user",
+      "Next I thought client-side serialization might be the culprit — we're using JSON.stringify on large objects before storing. Profiled it: serialization takes under 0.2ms even on the biggest payloads. Not the issue."
+    ],
+    [
+      "user",
+      "Checked Redis CONFIG GET appendfsync — it's set to 'always', meaning Redis fsyncs to disk on every write command. Switched to 'everysec' and the p99 immediately dropped to 1ms. AOF fsync policy was the bottleneck."
+    ]
+  ],
+  "expect": {
+    "ruled_out_contains": [
+      "network latency",
+      "serialization"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

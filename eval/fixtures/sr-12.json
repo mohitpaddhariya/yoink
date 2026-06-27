@@ -1,0 +1,16 @@
+{
+  "id": "sr-12",
+  "category": "session_resolution",
+  "session_hint": "the elasticsearch returning stale search results after outage",
+  "question": "What did we conclude caused Elasticsearch to return stale and inconsistent documents after the network outage?",
+  "turns": [
+    ["user", "After a 90-second network partition our 3-node Elasticsearch 6 cluster is returning stale results — deleted documents still appear and newly indexed records are missing. The cluster shows green health but data is inconsistent."],
+    ["user", "During the partition the cluster split into two sub-clusters of 2 and 1 nodes. Both sides elected a master and continued accepting writes. We set minimum_master_nodes to 1 to avoid downtime during single-node restarts."],
+    ["user", "Root cause: with minimum_master_nodes set to 1 (should be 2 for a 3-node cluster — floor(n/2)+1), both sides of the partition could elect a master and accept writes independently. After the partition healed, Elasticsearch had to reconcile divergent shard copies, leading to a mix of pre- and post-partition data. Fix: set minimum_master_nodes: 2, restore the affected indices from the last clean snapshot taken before the partition, and re-index from the source of truth."]
+  ],
+  "expect": {
+    "conclusion_contains": ["minimum_master_nodes", "split-brain", "partition"],
+    "answer_confidence_in": ["high", "medium"],
+    "no_conclusion": false
+  }
+}

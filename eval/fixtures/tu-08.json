@@ -1,0 +1,37 @@
+{
+  "id": "tu-08",
+  "category": "temporal_update",
+  "session_hint": "the reverse proxy choice for the new API gateway",
+  "question": "What reverse proxy did we settle on for the API gateway?",
+  "turns": [
+    [
+      "user",
+      "Need a reverse proxy in front of the API cluster. The obvious choice is nginx — we know it, the team has existing configs, it's battle-tested."
+    ],
+    [
+      "user",
+      "nginx.conf drafted with upstream blocks, rate-limit zones, and proxy_pass rules. Deployed to staging, working correctly."
+    ],
+    [
+      "user",
+      "TLS cert renewal keeps breaking in production. Certbot runs as a separate cronjob and nginx needs a reload signal after each renewal — the coordination fails silently and we've had two cert expiry incidents."
+    ],
+    [
+      "user",
+      "Switching from nginx to Caddy. Caddy handles ACME cert issuance and renewal internally with zero external tooling, and the Caddyfile is dramatically simpler than our nginx.conf. Decision is final: Caddy replaces nginx."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "caddy"
+    ],
+    "ruled_out_contains": [
+      "nginx"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

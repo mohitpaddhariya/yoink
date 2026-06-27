@@ -1,0 +1,38 @@
+{
+  "id": "tu-05",
+  "category": "temporal_update",
+  "session_hint": "the authentication token strategy for the user-facing web app",
+  "question": "What did we ultimately go with for storing auth tokens in the web app?",
+  "turns": [
+    [
+      "user",
+      "Plan for user auth: issue JWTs signed with RS256, store them in localStorage. Token contains user ID and role so the frontend can gate routes client-side without an extra API call."
+    ],
+    [
+      "user",
+      "JWT generation and verification middleware written. Frontend decodes the token to get the role. Works end to end in staging."
+    ],
+    [
+      "user",
+      "Security review flagged it: localStorage JWTs are fully readable by any injected script — classic XSS exfiltration vector. We cannot ship this."
+    ],
+    [
+      "user",
+      "We're now going with server-side sessions backed by Postgres, delivered via HttpOnly SameSite=Strict cookies. Session ID in cookie, all user data stays server-side. XSS cannot read HttpOnly cookies. JWT approach is dropped entirely. Final answer: session cookies."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "session",
+      "cookie"
+    ],
+    "ruled_out_contains": [
+      "jwt"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

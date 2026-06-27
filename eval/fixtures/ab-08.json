@@ -1,0 +1,31 @@
+{
+  "id": "ab-08",
+  "category": "abstention",
+  "session_hint": "the intermittent DNS resolution failures in the k8s cluster",
+  "question": "What was causing the intermittent DNS resolution failures for internal services in the cluster?",
+  "turns": [
+    [
+      "user",
+      "Getting sporadic NXDOMAIN responses for internal service names inside our k8s cluster — roughly 5-10 per hour, each lasting under a second, but enough to surface as 502s on the frontend. CoreDNS logs show the same names resolving fine on immediate retry."
+    ],
+    [
+      "user",
+      "CoreDNS pods look healthy, resource usage is normal, and the ConfigMap is standard. The failures are exclusive to the cluster.local domain — external DNS queries work fine throughout."
+    ],
+    [
+      "user",
+      "The failures seem to correlate with traffic spikes: when inbound request rate jumps, we see more DNS failures in the same window. Could be CoreDNS getting overloaded and dropping queries. But CoreDNS resource limits are managed by the infra team and they need to approve changes."
+    ],
+    [
+      "user",
+      "Infra team floated an alternative theory: conntrack table exhaustion on the nodes. High UDP query volume could fill the conntrack table before CoreDNS processes the packets, causing silent drops at the kernel level — completely separate from CoreDNS load. They said they're investigating both."
+    ],
+    [
+      "user",
+      "Infra team hasn't gotten back to us. We can't change CoreDNS config or node-level sysctl settings without their sign-off. Both the CoreDNS resource limit theory and the conntrack theory are still open. We're blocked on their investigation and have no conclusion on our end."
+    ]
+  ],
+  "expect": {
+    "no_conclusion": true
+  }
+}

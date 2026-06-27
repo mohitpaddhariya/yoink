@@ -1,0 +1,17 @@
+{
+  "id": "cr-14",
+  "category": "conclusion_recall",
+  "session_hint": "the WebSocket idle disconnection investigation",
+  "question": "What did we conclude was causing WebSocket connections to drop exactly 60 seconds after becoming idle?",
+  "turns": [
+    ["user", "WebSocket connections to our real-time notification service drop exactly 60 seconds after the last message is exchanged. Clients auto-reconnect but there's a visible gap in updates. Happens consistently regardless of client platform."],
+    ["user", "Checked the WebSocket server (Node.js ws library v8.14): no server-side idle timeout is configured. The ws server is set to keep connections indefinitely. Nothing in the app closes them."],
+    ["user", "Looked at the nginx config for the /ws location block. There's no proxy_read_timeout directive set there, so it inherits the nginx default of 60 seconds. After 60s with no data from the upstream ws server, nginx closes the TCP connection unilaterally."],
+    ["user", "Added proxy_read_timeout 3600s and proxy_send_timeout 3600s to the /ws location block. Connections now stay alive for hours. Root cause: nginx proxy_read_timeout defaulting to 60 seconds, silently closing idle WebSocket connections."]
+  ],
+  "expect": {
+    "conclusion_contains": ["proxy_read_timeout", "nginx"],
+    "answer_confidence_in": ["high", "medium"],
+    "no_conclusion": false
+  }
+}

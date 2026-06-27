@@ -1,0 +1,31 @@
+{
+  "id": "ab-01",
+  "category": "abstention",
+  "session_hint": "the PostgreSQL checkout query slowdown investigation",
+  "question": "What did we conclude was causing the checkout query slowdowns in production?",
+  "turns": [
+    [
+      "user",
+      "The checkout query on the orders table is taking 4-8 seconds in production for certain user segments. EXPLAIN ANALYZE shows a sequential scan even though we have an index on user_id."
+    ],
+    [
+      "user",
+      "The index exists but the planner isn't using it. Either the statistics are stale or the index isn't selective enough for these high-order-count user IDs. Ran ANALYZE but the plan didn't change."
+    ],
+    [
+      "user",
+      "Now also suspecting table bloat — last VACUUM was 3 weeks ago and dead tuple ratio is high. But the query also filters on a date range alongside user_id, so maybe a composite index is actually what's needed."
+    ],
+    [
+      "user",
+      "Added a composite index on (user_id, created_at) in staging and also ran VACUUM ANALYZE there. Query time dropped from ~6s to ~180ms. But I applied both changes at once, so I can't isolate which one fixed it."
+    ],
+    [
+      "user",
+      "Shipped both to prod and it's fast now, but the root cause is still unknown — was it the bloat, the missing composite index, or both together? Leaving this open since we can't easily un-apply one change at a time in prod."
+    ]
+  ],
+  "expect": {
+    "no_conclusion": true
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "id": "de-09",
+  "category": "dead_end_suppression",
+  "session_hint": "the S3 pre-signed URL 403 error investigation",
+  "question": "What was causing intermittent 403 errors on S3 pre-signed download URLs?",
+  "turns": [
+    [
+      "user",
+      "About 8% of file download requests in the mobile app are returning 403. The download service generates S3 pre-signed URLs and hands them to the client. First theory: the S3 bucket policy is blocking certain CIDRs or origins."
+    ],
+    [
+      "user",
+      "Reviewed bucket policy in full — only condition is an s3:prefix restriction to allowed directories, no IP or source conditions. Made a direct SDK GetObject call with the same credentials: success. Bucket policy is not the issue. Ruling it out."
+    ],
+    [
+      "user",
+      "Second theory: the IAM role attached to the download service is missing the s3:GetObject permission for the affected prefix. Ran aws iam simulate-principal-policy — allowed for all prefixes. Direct GET with the same credentials works fine. Ruling out IAM permissions."
+    ],
+    [
+      "user",
+      "Added detailed logging on the client side. The 403s happen when the elapsed time between URL generation on the server and the actual GET request from the mobile app exceeds 90 seconds. Our pre-signed URLs are generated with Expires=60 (60-second lifetime). Mobile clients on slow 3G or in a background app state sometimes take 90-120 seconds to initiate the download. The URL has expired before they use it and S3 returns 403. Fixed by increasing presigned URL expiry to 900 seconds. Root cause: pre-signed URL expiry set to 60 seconds, too short for slow mobile clients."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "expir",
+      "60 seconds"
+    ],
+    "conclusion_excludes": [
+      "bucket policy"
+    ],
+    "ruled_out_contains": [
+      "bucket policy",
+      "iam role"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

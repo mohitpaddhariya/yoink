@@ -1,0 +1,31 @@
+{
+  "id": "ab-05",
+  "category": "abstention",
+  "session_hint": "the flaky GitHub Actions integration test investigation",
+  "question": "What was causing the integration tests to fail intermittently in CI?",
+  "turns": [
+    [
+      "user",
+      "The integration test suite fails roughly 1 in 5 CI runs with no code change triggering it. Failures are always on different tests, and the test runner is pytest with 8 parallel xdist workers."
+    ],
+    [
+      "user",
+      "Failed test logs show ConnectionRefusedError to the Postgres test container, but not always the same tests failing. The container health check reports healthy before tests start — healthcheck is pg_isready which just checks if the port accepts connections."
+    ],
+    [
+      "user",
+      "Hypothesis A: pg_isready passes before the database finishes schema initialization, so early workers find an empty schema. Added a 5-second sleep after health check passes — failure rate dropped from ~20% to ~8% but didn't reach zero."
+    ],
+    [
+      "user",
+      "Hypothesis B: pytest-xdist workers are racing on table teardown and setup. Some tests drop and recreate tables, and another worker might try to query a table mid-teardown. Switched to --dist loadfile to colocate same-file tests — still saw one failure in 10 runs."
+    ],
+    [
+      "user",
+      "Can't reliably reproduce this locally at all, even with 20 parallel workers. The sleep helped but didn't fix it, loadfile mode helped but didn't fix it. Can't tell if there's one root cause or multiple. Added retry logic as a bandaid but the real cause is still unclear."
+    ]
+  ],
+  "expect": {
+    "no_conclusion": true
+  }
+}

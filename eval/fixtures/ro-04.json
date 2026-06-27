@@ -1,0 +1,35 @@
+{
+  "id": "ro-04",
+  "category": "ruled_out_recall",
+  "session_hint": "the Cumulative Layout Shift investigation on article pages",
+  "question": "What did we rule out as causes of the high CLS score on the article pages?",
+  "turns": [
+    [
+      "user",
+      "Our Lighthouse CLS score on article pages is 0.38, way over the 0.1 threshold. Initial suspicion: web fonts loading late and causing text to reflow before the page settles."
+    ],
+    [
+      "user",
+      "Added font-display: swap and preloaded the two web fonts with <link rel=preload>. CLS barely changed — dropped to only 0.35. Font loading is not the main culprit, ruling it out."
+    ],
+    [
+      "user",
+      "Checked all images: every <img> tag has explicit width and height attributes set. The browser reserves space correctly. Layout Shift attribution in DevTools confirms image shift contribution is under 0.01. Images are not the issue."
+    ],
+    [
+      "user",
+      "Identified the real cause: a third-party ad iframe gets injected 800ms after page load by the ad SDK, pushing all article content below it down by 250px. Switching to a reserved ad slot with a fixed 250px height placeholder fixed the CLS score to 0.05."
+    ]
+  ],
+  "expect": {
+    "ruled_out_contains": [
+      "font",
+      "images"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

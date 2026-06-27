@@ -1,0 +1,74 @@
+{
+  "id": "lt-10",
+  "category": "long_transcript_stress",
+  "session_hint": "the Nginx 502 Bad Gateway error investigation",
+  "question": "What did we conclude was causing the Nginx 502 Bad Gateway errors?",
+  "turns": [
+    [
+      "user",
+      "Intermittent 502s from Nginx, error rate around 2%, spiky. Upstream is a Python FastAPI app running on uvicorn. No recent deployments."
+    ],
+    [
+      "user",
+      "Checked Nginx worker_processes and worker_connections — both set appropriately (auto and 1024). Workers are not maxed out at peak load. Not a concurrency limit issue."
+    ],
+    [
+      "user",
+      "Looked at proxy_buffer_size and proxy_buffers configuration — values are standard, no buffer overflow errors appearing in nginx error.log. Ruled that out."
+    ],
+    [
+      "user",
+      "Checked SSL termination at Nginx — grep'd error.log for SSL errors. Zero SSL errors in the relevant time window. Not an SSL issue."
+    ],
+    [
+      "user",
+      "Noticed 502 errors correlate strongly with requests arriving on connections that have been idle for 30-75 seconds. Connections that were recently used work fine."
+    ],
+    [
+      "user",
+      "Looked at uvicorn's keepalive settings: --timeout-keep-alive is set to 30 (the default). Uvicorn closes any idle HTTP keepalive connection after 30 seconds."
+    ],
+    [
+      "user",
+      "Checked Nginx upstream keepalive block: keepalive_timeout is set to 75 seconds. Nginx holds connections in its upstream pool for up to 75 seconds, assuming they remain valid."
+    ],
+    [
+      "user",
+      "The gap is the problem: uvicorn closes the connection at 30s, but Nginx still considers it live until 75s. Between 30s and 75s of idleness, Nginx picks the connection from its pool to serve a new request, gets a TCP RST from uvicorn (connection already closed), and returns a 502 to the client."
+    ],
+    [
+      "user",
+      "Root cause: Nginx upstream keepalive timeout (75s) exceeds FastAPI/uvicorn's keepalive timeout (30s). Nginx reuses connections that the app server has already closed, resulting in stale-connection 502 errors."
+    ],
+    [
+      "user",
+      "Fix: set keepalive_timeout in the Nginx upstream block to 25 seconds — safely below uvicorn's 30-second limit — so Nginx retires connections before uvicorn does."
+    ],
+    [
+      "user",
+      "502 rate dropped to 0% within 2 minutes of the Nginx reload. Monitored for 4 hours. Clean."
+    ],
+    [
+      "user",
+      "Worker process limits, proxy buffer settings, and SSL termination were all clean throughout. Closing the incident."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "keepalive"
+    ],
+    "conclusion_excludes": [
+      "proxy_buffer"
+    ],
+    "ruled_out_contains": [
+      "worker",
+      "buffer",
+      "SSL"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

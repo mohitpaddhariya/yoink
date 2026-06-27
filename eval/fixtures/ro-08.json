@@ -1,0 +1,35 @@
+{
+  "id": "ro-08",
+  "category": "ruled_out_recall",
+  "session_hint": "the S3 presigned URL 403 error investigation",
+  "question": "What did we rule out when investigating the S3 presigned URL 403 errors?",
+  "turns": [
+    [
+      "user",
+      "About 15% of S3 presigned GET URLs return 403 Access Denied for end users. Direct SDK GetObject calls from the backend work fine. First suspect: the IAM role used to sign the URLs lacks s3:GetObject permission on the bucket."
+    ],
+    [
+      "user",
+      "Verified the IAM role policy: it has s3:GetObject on arn:aws:s3:::media-uploads/* with no explicit denies anywhere in the chain. Tested the role directly with the AWS CLI — works fine. IAM permissions are correct, ruling them out."
+    ],
+    [
+      "user",
+      "Checked the bucket policy for IP-based restrictions or VPC endpoint conditions that might block external clients downloading via presigned URLs. The bucket policy only enforces HTTPS — no IP conditions, no VPC endpoint requirement. Bucket policy is not causing the 403s."
+    ],
+    [
+      "user",
+      "Found it: the signing service runs on EC2 instances with misconfigured NTP. System clocks drift up to 6 minutes. Presigned URLs have a 5-minute expiry, so URLs signed near the end of a drift window are already expired by the time users click them. Fixed NTP with chronyc and the 403 rate dropped to zero."
+    ]
+  ],
+  "expect": {
+    "ruled_out_contains": [
+      "iam",
+      "bucket policy"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

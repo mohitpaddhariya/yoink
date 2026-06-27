@@ -1,0 +1,31 @@
+{
+  "id": "ab-14",
+  "category": "abstention",
+  "session_hint": "the WebSocket disconnect storm during load testing",
+  "question": "What caused the WebSocket connections to drop en masse during load testing last Monday?",
+  "turns": [
+    [
+      "user",
+      "During load testing Monday, WebSocket connections started dropping in bulk once concurrent connections exceeded roughly 8,000. Server is Node.js with the ws library, sitting behind nginx. All drops show code 1006 — abnormal closure, no close frame from the server side."
+    ],
+    [
+      "user",
+      "Two main suspects: (A) the Node process hitting its file descriptor limit; (B) nginx's worker_connections ceiling being too low. Checked the Node process — ulimit -n is 65535 and the process had about 9,000 open fds at the failure point, so file descriptors aren't the constraint. Hypothesis A looks weak."
+    ],
+    [
+      "user",
+      "Checked nginx config: worker_connections is 10240 per worker, two workers running, so theoretical maximum is 20,480 connections. But nginx uses connections for upstream, admin, and other overhead, so the actual WebSocket headroom per path is probably lower. The 8,000 threshold could be bumping into this."
+    ],
+    [
+      "user",
+      "Bumped worker_connections to 20480 per worker and reran the load test. Drops now start at around 9,200 concurrent connections instead of 8,000 — slightly higher, but still dropping. That suggests nginx is partly involved but isn't the only constraint."
+    ],
+    [
+      "user",
+      "A third possibility emerged: at high concurrency the ws library's message parsing might be saturating the Node event loop, causing connection handling to stall. Didn't get time to profile it. Two suspects partially investigated, a third not started at all. Pausing load testing until we understand this better."
+    ]
+  ],
+  "expect": {
+    "no_conclusion": true
+  }
+}

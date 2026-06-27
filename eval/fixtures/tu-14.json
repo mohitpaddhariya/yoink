@@ -1,0 +1,37 @@
+{
+  "id": "tu-14",
+  "category": "temporal_update",
+  "session_hint": "the service-to-service encryption strategy for the internal microservices mesh",
+  "question": "What's the final approach for encrypting traffic between internal microservices?",
+  "turns": [
+    [
+      "user",
+      "For inter-service traffic inside the cluster, the original plan was to terminate TLS at the ALB and let services speak plain HTTP over private subnets. VPC isolation was considered the security boundary."
+    ],
+    [
+      "user",
+      "ALB TLS termination configured. Internal services communicate over HTTP on private subnet 10.0.0.0/8. Simple, low overhead, working in staging."
+    ],
+    [
+      "user",
+      "Security audit flagged a serious gap: if any single service is compromised, an attacker can sniff all east-west traffic within the VPC. Compliance team confirmed we must encrypt in transit everywhere, not just at the perimeter."
+    ],
+    [
+      "user",
+      "We're abandoning TLS termination at the load balancer for internal traffic. Adopting mTLS mesh-wide via Istio — every service gets a SPIFFE certificate, traffic is encrypted and mutually authenticated end-to-end between pods. Final decision: mTLS."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "mtls"
+    ],
+    "ruled_out_contains": [
+      "termination"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

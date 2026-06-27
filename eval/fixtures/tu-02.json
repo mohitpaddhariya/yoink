@@ -1,0 +1,38 @@
+{
+  "id": "tu-02",
+  "category": "temporal_update",
+  "session_hint": "the API gateway rate-limiting backend decision",
+  "question": "What's the final decision on where to store rate-limit counters in the gateway?",
+  "turns": [
+    [
+      "user",
+      "For API rate limiting in the gateway we were going to use Redis. Each node increments a shared counter per client key with a sliding window TTL."
+    ],
+    [
+      "user",
+      "Redis cluster is already provisioned. Started implementing the Lua script for atomic increment-and-expire. Looks solid."
+    ],
+    [
+      "user",
+      "SRE team pushed back: making Redis a hard dependency of the gateway means a Redis outage takes down all API traffic. That's an unacceptable blast radius."
+    ],
+    [
+      "user",
+      "We scrapped Redis for rate limiting. Going with an in-process LRU store per gateway pod instead. Limits will be slightly looser across pods but the SLA only requires best-effort rate limiting — that's fine. Final answer: in-memory LRU."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "in-memory",
+      "lru"
+    ],
+    "ruled_out_contains": [
+      "redis"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

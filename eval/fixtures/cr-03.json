@@ -1,0 +1,34 @@
+{
+  "id": "cr-03",
+  "category": "conclusion_recall",
+  "session_hint": "the React DataTable re-render investigation",
+  "question": "What did we conclude was causing the DataTable component to re-render on every keystroke in the search input?",
+  "turns": [
+    [
+      "user",
+      "The DataTable component in our admin dashboard re-renders on every keystroke in the search box, even when the table data hasn't changed. Using React 18.2, profiler shows 40-60ms paint per re-render causing visible lag."
+    ],
+    [
+      "user",
+      "Verified the parent SearchPage is wrapped in React.memo. Also confirmed the data prop — a stable array from a Redux selector — is not changing reference between renders."
+    ],
+    [
+      "user",
+      "Found it: we're passing style={{ overflow: 'auto', position: 'relative' }} as an inline prop to DataTable. Every render of SearchPage creates a new object literal so DataTable's props.style reference changes every time, bypassing the memo check."
+    ],
+    [
+      "user",
+      "Moved the style object to a module-level constant outside the component. Re-renders stopped entirely. Root cause: inline object literal prop creating a new reference on each parent render, defeating React.memo."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "inline"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

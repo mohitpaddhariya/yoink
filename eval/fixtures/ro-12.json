@@ -1,0 +1,35 @@
+{
+  "id": "ro-12",
+  "category": "ruled_out_recall",
+  "session_hint": "the Node.js background worker memory growth investigation",
+  "question": "What did we try and rule out when investigating the Node.js background worker memory growth?",
+  "turns": [
+    [
+      "user",
+      "Our Node.js background worker grows from 150MB to 1.5GB over 6 hours and then crashes. First theory: EventEmitter listeners are accumulating — we attach listeners for job lifecycle events inside a hot path."
+    ],
+    [
+      "user",
+      "Added listener count logging every minute. MaxListeners warning never fires. Counts stay constant throughout the run — each job correctly calls removeListener on completion. EventEmitter accumulation is ruled out."
+    ],
+    [
+      "user",
+      "Suspected closure references holding onto large job payloads — we process 10KB JSON blobs per job. Took heap snapshots at 1h and 5h: retained closures exist but none larger than 2KB and the count doesn't grow. Closure references are not the cause."
+    ],
+    [
+      "user",
+      "Found the real leak: a singleton RequestDeduplicator class holds in-flight request hashes in a Map. Completed entries should be deleted after 5 minutes by a cleanup timer, but the timer was never started — the constructor calls this.startCleanup() before the method is bound, so it throws silently. Map grew without bound. Fixed the binding with an arrow function, memory stabilized under 200MB."
+    ]
+  ],
+  "expect": {
+    "ruled_out_contains": [
+      "EventEmitter",
+      "closure references"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

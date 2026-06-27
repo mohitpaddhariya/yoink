@@ -1,0 +1,17 @@
+{
+  "id": "cr-05",
+  "category": "conclusion_recall",
+  "session_hint": "the slow GitHub Actions pipeline investigation",
+  "question": "What did we conclude was causing the GitHub Actions CI pipeline to take 18 minutes per run?",
+  "turns": [
+    ["user", "Our CI pipeline on GitHub Actions takes 18 minutes end-to-end. The actual test suite passes in under 4 minutes. Need to find what's eating the remaining 14 minutes of setup time."],
+    ["user", "Looked at the workflow run logs step by step. The npm ci step is taking 12 to 13 minutes on every run — it's downloading and extracting all 847 packages from scratch each time."],
+    ["user", "Checked the workflow YAML: the actions/setup-node step is present but its cache: 'npm' option is absent. There's no separate actions/cache step either. Every run is a full cold install with no reuse of node_modules."],
+    ["user", "Added cache: 'npm' to the actions/setup-node step. Cache hit on the next run brought npm ci down to 22 seconds. Total pipeline is now 5 minutes. Root cause: missing npm cache in the CI workflow, forcing a full dependency reinstall every run."]
+  ],
+  "expect": {
+    "conclusion_contains": ["npm", "missing", "cache"],
+    "answer_confidence_in": ["high", "medium"],
+    "no_conclusion": false
+  }
+}

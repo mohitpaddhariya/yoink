@@ -1,0 +1,35 @@
+{
+  "id": "ro-05",
+  "category": "ruled_out_recall",
+  "session_hint": "the GitHub Actions pipeline slowdown investigation",
+  "question": "What did we rule out when investigating why our GitHub Actions pipeline started taking 42 minutes?",
+  "turns": [
+    [
+      "user",
+      "Our GitHub Actions CI pipeline ballooned from 18 to 42 minutes after last week's merge. First suspect: the test suite grew substantially — we added 200 new tests that week."
+    ],
+    [
+      "user",
+      "Timed the test step in isolation: it takes 9 minutes, same as before the regression. The new tests are fast unit tests adding under 30 seconds total. Test suite size is not the cause, ruling it out."
+    ],
+    [
+      "user",
+      "Thought the npm install step might be skipping cache and fetching from the registry. Checked the cache hit logs: the actions/cache step restores at a 97% hit rate every run. Dependency install is consistently 45 seconds, not the bottleneck either."
+    ],
+    [
+      "user",
+      "Traced it to the Docker build step: a Dockerfile refactor moved the COPY . . instruction before the RUN npm ci layer. Now every code change busts the dependency install layer inside Docker, causing a full npm ci on every push. Reordered the Dockerfile so COPY only copies package.json first, then RUN npm ci, then COPY . . — pipeline dropped back to 20 minutes."
+    ]
+  ],
+  "expect": {
+    "ruled_out_contains": [
+      "test suite",
+      "npm install"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

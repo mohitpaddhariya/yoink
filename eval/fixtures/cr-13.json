@@ -1,0 +1,35 @@
+{
+  "id": "cr-13",
+  "category": "conclusion_recall",
+  "session_hint": "the geocoding API rate limit investigation",
+  "question": "What did we conclude was causing the 429 rate limit errors from the Google Maps Geocoding API?",
+  "turns": [
+    [
+      "user",
+      "Three microservices — order-service, delivery-service, and analytics-service — all call the Google Maps Geocoding API. We're seeing 429 OVER_QUERY_LIMIT responses that throttle all three simultaneously."
+    ],
+    [
+      "user",
+      "Checked the Google Cloud Console API key usage dashboard: we're hitting the 3000 QPM cap. But our traffic estimates show each individual service should be well under 1000 QPM on its own."
+    ],
+    [
+      "user",
+      "Found it in our secrets manager: all three services are configured with the same API key — MAPS_KEY_PROD — pulled from a shared environment config. Their requests are pooled under a single per-key quota, so the combined load trips the limit."
+    ],
+    [
+      "user",
+      "Provisioned separate API keys for each service. 429s dropped to zero. Root cause: all three services sharing a single API key, causing combined request rate to exceed the per-key quota."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "api key",
+      "per-key quota"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

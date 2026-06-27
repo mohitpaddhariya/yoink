@@ -1,8 +1,8 @@
 """Test helpers: synthesize Claude Code session transcripts on disk.
 
 Grounded in the real layout (verified against ~/.claude/projects): transcripts live at
-``<projects_root>/<slug>/<session-id>.jsonl`` where ``slug`` is the cwd with every ``/``
-and ``.`` replaced by ``-``, append-only JSONL. Titles are *separate* records: type
+``<projects_root>/<slug>/<session-id>.jsonl`` where ``slug`` is the cwd with every ``/``,
+``.`` and ``_`` replaced by ``-`` (see ``resolver.cwd_to_slug``), append-only JSONL. Titles are *separate* records: type
 ``ai-title`` (field ``aiTitle``) and ``custom-title`` (field ``customTitle``), appended
 over time so the latest wins. Kept light: tests need cwd, titles and user/assistant text.
 """
@@ -13,10 +13,7 @@ import os
 from collections.abc import Iterable
 from pathlib import Path
 
-
-def slug_for(cwd: str) -> str:
-    """Claude Code project slug for a working directory."""
-    return cwd.replace("/", "-").replace(".", "-")
+from yoink.resolver import cwd_to_slug as slug_for  # one slug rule, shared with production
 
 
 def write_transcript(

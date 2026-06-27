@@ -1,0 +1,42 @@
+{
+  "id": "de-03",
+  "category": "dead_end_suppression",
+  "session_hint": "the Kafka payments pipeline consumer lag investigation",
+  "question": "What was causing the Kafka consumer lag to grow in the payments pipeline?",
+  "turns": [
+    [
+      "user",
+      "Consumer lag on the payments-events topic is growing at ~5000 messages/minute. We have 12 partitions and 6 consumer instances in the group. First suspect: broker disk I/O is saturated — the broker boxes are AWS i3.large with NVMe drives."
+    ],
+    [
+      "user",
+      "Checked broker metrics in Grafana: disk throughput at 18 MB/s against a 500 MB/s NVMe limit. CPU on brokers at 12%. Disk I/O is nowhere near the bottleneck. Ruling out disk saturation."
+    ],
+    [
+      "user",
+      "Second theory: network bandwidth between the Kafka broker subnet and the consumer EC2s is constrained. Ran iperf3 between the nodes — 9.4 Gbps available, we're using 200 Mbps. Plenty of headroom. Ruling out network bandwidth."
+    ],
+    [
+      "user",
+      "Found the real issue: consumer logs show 'MemberID ... Attempt to heartbeat failed since group is rebalancing' every 45 seconds. One consumer instance is processing a batch of large payment events (avg 2.3 MB each) and taking 310 seconds per batch — well above the default max.poll.interval.ms of 300000ms. Kafka boots it from the group, triggering a full rebalance and pausing all consumption. Fix: increased max.poll.interval.ms to 600000ms and reduced max.poll.records from 500 to 50. Root cause: consumer group rebalancing due to exceeded max.poll.interval."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "max.poll.interval",
+      "rebalanc"
+    ],
+    "conclusion_excludes": [
+      "disk"
+    ],
+    "ruled_out_contains": [
+      "disk i/o",
+      "network bandwidth"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

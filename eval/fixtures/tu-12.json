@@ -1,0 +1,37 @@
+{
+  "id": "tu-12",
+  "category": "temporal_update",
+  "session_hint": "the full-text search engine decision for the product catalog",
+  "question": "What search engine did we end up choosing for the product catalog?",
+  "turns": [
+    [
+      "user",
+      "Product catalog needs full-text search with faceted filtering on category, price range, and brand. Elasticsearch is the industry standard — planning to self-host a 3-node cluster on EC2."
+    ],
+    [
+      "user",
+      "ES cluster provisioned, index mapping defined with keyword fields for facets and text fields for full-text. Kibana hooked up for monitoring. Initial results look good."
+    ],
+    [
+      "user",
+      "After two weeks the cluster requires constant tuning — JVM heap sizing, shard count adjustments, GC pause alerts. DevOps time is being eaten alive and we have 500k products, not petabytes."
+    ],
+    [
+      "user",
+      "We're scrapping Elasticsearch. Going with Typesense instead — single binary, instant setup, search-as-you-type out of the box, and our entire catalog fits comfortably in RAM. DevOps overhead drops to near zero. Final decision: Typesense."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "typesense"
+    ],
+    "ruled_out_contains": [
+      "elasticsearch"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

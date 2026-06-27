@@ -1,0 +1,17 @@
+{
+  "id": "cr-09",
+  "category": "conclusion_recall",
+  "session_hint": "the api.example.com DNS resolution failure investigation",
+  "question": "What did we conclude was causing intermittent NXDOMAIN failures for the api.example.com subdomain?",
+  "turns": [
+    ["user", "About 3% of requests to api.example.com are failing with NXDOMAIN. Reproducible from multiple regions. Started right after we migrated authoritative DNS to a new provider last Tuesday."],
+    ["user", "Querying our new authoritative nameservers directly returns the correct A record. The failures only come from public resolvers like 8.8.8.8 and 1.1.1.1."],
+    ["user", "Found the issue: when we updated the NS delegation at the registrar, the old NS records had a 5-minute TTL and were cached widely. Some resolvers cached the old NS entries pointing at the decommissioned nameservers, which now return NXDOMAIN for the subdomain. The new zone is correct but those resolvers aren't reaching it."],
+    ["user", "Root cause: stale NS delegation cached by public resolvers during the switchover. Resolvers that hadn't refreshed yet kept hitting the old decommissioned nameservers. Fully resolved on its own once all cached NS TTLs expired — about 48 hours after the migration."]
+  ],
+  "expect": {
+    "conclusion_contains": ["stale ns", "delegation"],
+    "answer_confidence_in": ["high", "medium"],
+    "no_conclusion": false
+  }
+}

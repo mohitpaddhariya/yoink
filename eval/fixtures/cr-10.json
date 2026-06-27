@@ -1,0 +1,35 @@
+{
+  "id": "cr-10",
+  "category": "conclusion_recall",
+  "session_hint": "the TLS handshake failure on mobile clients investigation",
+  "question": "What did we conclude was causing TLS handshake failures for mobile clients but not desktop browsers?",
+  "turns": [
+    [
+      "user",
+      "Mobile users on both iOS and Android are getting SSL errors connecting to api.example.com starting this morning. Desktop browsers connect fine. Our cert shows valid in desktop devtools."
+    ],
+    [
+      "user",
+      "Ran openssl s_client -connect api.example.com:443 -showcerts. The server is sending only the leaf certificate — no intermediate CA cert in the chain."
+    ],
+    [
+      "user",
+      "Desktop browsers cache intermediate certs from previous connections and perform AIA (Authority Information Access) fetching to complete the chain automatically. Mobile clients and curl do not perform AIA fetching and require the full chain to be served by the server. Our latest cert renewal only installed the leaf cert file, not the full bundle."
+    ],
+    [
+      "user",
+      "Replaced the certificate file with the full chain bundle (leaf + intermediate + root). Mobile TLS handshakes succeed immediately. Root cause: intermediate certificate missing from the served TLS chain after cert renewal."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "intermediate",
+      "full chain"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

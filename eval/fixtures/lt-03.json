@@ -1,0 +1,24 @@
+{
+  "id": "lt-03",
+  "category": "long_transcript_stress",
+  "session_hint": "the React SSR hydration mismatch investigation",
+  "question": "What did we conclude was causing the React hydration mismatch errors?",
+  "turns": [
+    ["user", "React is logging hydration mismatch errors in production. The root cause is clear from the first trace: the server and client both call Date.now() independently during the render of our CountdownBanner component. They produce different timestamps, so the rendered HTML diverges and React bails on reconciliation."],
+    ["user", "Investigated CSS-in-JS as a secondary suspect: we use styled-components with SSR enabled. Class name generation is deterministic and stable across server and client. Not the source of mismatches."],
+    ["user", "Checked lazy-loaded components — all are wrapped in Suspense with static string fallbacks. They render identically on both sides. Not contributing."],
+    ["user", "Event handler registration was briefly suspected because React 18 changed how event delegation works. But event handlers don't produce text content and can't cause the specific text-node mismatches we're seeing. Ruled out."],
+    ["user", "Confirmed by commenting out Date.now() in CountdownBanner and replacing with a static value: hydration errors disappear completely. Pages without any timestamp rendering hydrate cleanly."],
+    ["user", "Fix: pass the render timestamp as a prop from getServerSideProps so both server and client receive the same value. Applied in one place, no library changes needed."],
+    ["user", "Deployed. Hydration errors dropped to zero in Sentry within 10 minutes of rollout."],
+    ["user", "Added an ESLint rule to flag bare Date.now() and new Date() calls inside React component bodies."],
+    ["user", "CSS-in-JS class names and lazy-loaded Suspense components confirmed clean. Closing those investigation threads."]
+  ],
+  "expect": {
+    "conclusion_contains": ["Date.now()", "timestamp"],
+    "conclusion_excludes": ["styled-components"],
+    "ruled_out_contains": ["CSS-in-JS", "lazy", "event handler"],
+    "answer_confidence_in": ["high", "medium"],
+    "no_conclusion": false
+  }
+}

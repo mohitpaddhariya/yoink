@@ -1,0 +1,16 @@
+{
+  "id": "sr-01",
+  "category": "session_resolution",
+  "session_hint": "the postgres prepared statement errors",
+  "question": "What did we conclude was causing the 'prepared statement does not exist' errors?",
+  "turns": [
+    ["user", "Our Rails app started throwing 'ERROR: prepared statement \"a3\" does not exist' against PostgreSQL. Happens randomly under high load and rollbacks don't help."],
+    ["user", "We run PgBouncer in transaction pooling mode in front of Postgres. Rails creates prepared statements on the connection and assumes they persist for the session."],
+    ["user", "In transaction pooling mode PgBouncer can assign a different Postgres backend connection for each statement in a transaction. A prepared statement registered on one backend is invisible to a different backend. Fix is to switch PgBouncer to session pooling mode, or disable prepared statements in Rails with prepared_statements: false in database.yml."]
+  ],
+  "expect": {
+    "conclusion_contains": ["PgBouncer", "transaction pooling", "prepared statement"],
+    "answer_confidence_in": ["high", "medium"],
+    "no_conclusion": false
+  }
+}

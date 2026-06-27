@@ -1,0 +1,37 @@
+{
+  "id": "tu-13",
+  "category": "temporal_update",
+  "session_hint": "the report generation scheduling approach for the data pipeline",
+  "question": "What did we ultimately decide on for triggering report generation?",
+  "turns": [
+    [
+      "user",
+      "Nightly reports need to run after the ETL finishes loading data into Redshift. Plan: cron job at 02:00 UTC on the ETL EC2 host to kick off the report generator script."
+    ],
+    [
+      "user",
+      "Cron entry added. report-generator.py queries Redshift and uploads CSVs to S3. Tested manually, works correctly."
+    ],
+    [
+      "user",
+      "ETL run time is variable — it finishes anywhere between 01:45 and 03:30 depending on upstream data volume. Cron at 02:00 races it and we've had three incidents of reports being generated from half-loaded data."
+    ],
+    [
+      "user",
+      "Changed our minds on cron. Switching to event-driven triggers: ETL writes a completion marker to an S3 prefix on success, which fires an S3 event notification that triggers the report Lambda. Reports only run after ETL is confirmed done. Final decision: event-driven."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "event-driven"
+    ],
+    "ruled_out_contains": [
+      "cron"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

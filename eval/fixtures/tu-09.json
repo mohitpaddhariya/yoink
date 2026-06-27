@@ -1,0 +1,37 @@
+{
+  "id": "tu-09",
+  "category": "temporal_update",
+  "session_hint": "the JavaScript bundler decision for the dashboard app",
+  "question": "What bundler did we ultimately go with for the dashboard?",
+  "turns": [
+    [
+      "user",
+      "The dashboard app is being rebuilt from scratch. Starting with webpack 5 — we have existing loaders for SVGs and CSS modules and the team knows it well."
+    ],
+    [
+      "user",
+      "webpack config ported from the old app. Dev build takes 47 seconds, production 3.5 minutes. Same as before — painful but acceptable for now."
+    ],
+    [
+      "user",
+      "New engineers are complaining that 47-second cold builds and 8-second hot reloads destroy their flow. Two people said it's their biggest daily frustration. We need to fix this."
+    ],
+    [
+      "user",
+      "Abandoning webpack. Migrating to esbuild — benchmarks show 1.2s full build and 200ms incremental. The SVG handling needed a small plugin but it took 20 minutes to set up. Final answer: esbuild."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "esbuild"
+    ],
+    "ruled_out_contains": [
+      "webpack"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

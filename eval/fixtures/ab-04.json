@@ -1,0 +1,31 @@
+{
+  "id": "ab-04",
+  "category": "abstention",
+  "session_hint": "the React hydration mismatch investigation on UserDashboard",
+  "question": "What did we identify as the root cause of the React hydration mismatch errors in production?",
+  "turns": [
+    [
+      "user",
+      "Getting sporadic React hydration mismatch errors in Sentry, all pointing to the UserDashboard component. Affects about 2% of sessions. Completely non-reproducible locally or in staging."
+    ],
+    [
+      "user",
+      "Two suspects: (1) a date formatting function that calls new Date() without locale normalization — output could differ between SSR and the client; (2) a feature flag check that reads a cookie which may not be set during SSR, causing a different branch to render."
+    ],
+    [
+      "user",
+      "Added verbose hydration logging. The mismatch is in the greeting section, which renders both a formatted date and a feature-flagged beta badge — both suspects touch exactly that area so it doesn't narrow things down."
+    ],
+    [
+      "user",
+      "Normalized date formatting to UTC on SSR. Errors dropped from ~2% to ~1.2% of sessions. Could be a real improvement or noise — the sample window is only 4 hours and conversion is low."
+    ],
+    [
+      "user",
+      "Still seeing errors at 1.2% and haven't changed the feature flag cookie read yet. Can't tell if the date fix was causal or if the feature flag is the real culprit. Two suspects, neither eliminated. Need to ship the feature flag fix and watch for another week before drawing any conclusions."
+    ]
+  ],
+  "expect": {
+    "no_conclusion": true
+  }
+}

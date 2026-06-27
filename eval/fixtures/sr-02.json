@@ -1,0 +1,16 @@
+{
+  "id": "sr-02",
+  "category": "session_resolution",
+  "session_hint": "the redis cpu spike under load burst",
+  "question": "What did we conclude was causing the Redis CPU spikes during traffic surges?",
+  "turns": [
+    ["user", "Redis CPU is hitting 100% during marketing campaign traffic spikes. All cache keys seem to expire at the same second and the resulting misses hammer the database simultaneously."],
+    ["user", "We preloaded the cache before the campaign using a single script that set every key with the same fixed TTL. So they all expire at exactly the same wall-clock second."],
+    ["user", "Root cause is a cache stampede from synchronized expiry. Because every key got the identical TTL in a single preload run, they all expire in the same second and every request concurrently misses and queries the database. Fix: add random jitter to TTLs (e.g. base TTL + rand(0..300) seconds) to spread expirations, and use a per-key mutex so only one request recomputes an expired key while others wait or serve stale."]
+  ],
+  "expect": {
+    "conclusion_contains": ["cache stampede", "synchronized expiry", "jitter"],
+    "answer_confidence_in": ["high", "medium"],
+    "no_conclusion": false
+  }
+}

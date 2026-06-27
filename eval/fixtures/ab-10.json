@@ -1,0 +1,31 @@
+{
+  "id": "ab-10",
+  "category": "abstention",
+  "session_hint": "the webpack bundle size regression in v2.8",
+  "question": "What caused the main bundle size to jump 340KB in the v2.8 release?",
+  "turns": [
+    [
+      "user",
+      "Main JS bundle grew from 1.1MB to 1.44MB between v2.7 and v2.8. No large dependency was intentionally added. Customers are reporting a measurable page load regression, especially on mobile."
+    ],
+    [
+      "user",
+      "Ran webpack-bundle-analyzer on both builds side by side. Two things stand out: the moment locale chunk jumped from 80KB to 220KB, and the @company/design-system package went from 310KB to 430KB. Together that's close to the full 340KB increase."
+    ],
+    [
+      "user",
+      "The moment blowup looks straightforward — someone in a new component imported moment directly instead of the project alias that tree-shakes to only the locales we use. That direct import pulls in all locales. Fix is ready, should reclaim ~140KB."
+    ],
+    [
+      "user",
+      "The design-system increase is murkier. They released v1.5 which supposedly switched to SVG sprites to reduce icon payload. Their standalone build is actually smaller than v1.4. But in our webpack output, v1.5 is 120KB heavier. Something about our import or their sideEffects config might be defeating the sprite optimization."
+    ],
+    [
+      "user",
+      "The moment fix is in a PR but not merged. The design-system issue is still unresolved — same version produces different sizes in their build vs ours, and I don't know if it's their package.json sideEffects field, our webpack config, or something else. Two open threads, no full explanation yet."
+    ]
+  ],
+  "expect": {
+    "no_conclusion": true
+  }
+}

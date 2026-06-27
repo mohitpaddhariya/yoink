@@ -1,0 +1,16 @@
+{
+  "id": "sr-03",
+  "category": "session_resolution",
+  "session_hint": "the kafka messages skipped when consumer restarted",
+  "question": "What did we conclude caused the Kafka consumer to skip three days of backlogged messages?",
+  "turns": [
+    ["user", "Our Kafka consumer group 'order-processor' restarted after being down for three days of maintenance. On restart it jumped straight to the latest offset and skipped all backlogged messages entirely."],
+    ["user", "The consumer group had no committed offsets for this deployment environment because we had wiped the consumer group metadata as part of a staging cleanup script that accidentally ran against production."],
+    ["user", "Root cause: with no committed offsets, Kafka fell back to the auto.offset.reset config, which was set to 'latest' in production. So the brand-new group (from Kafka's perspective) started consuming from the tip of the log and skipped three days of accumulated messages. Fix: set auto.offset.reset=earliest for backlog-tolerant consumers, and restore the correct committed offsets from the last known checkpoint before restarting."]
+  ],
+  "expect": {
+    "conclusion_contains": ["auto.offset.reset", "latest", "committed offsets"],
+    "answer_confidence_in": ["high", "medium"],
+    "no_conclusion": false
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "id": "ro-11",
+  "category": "ruled_out_recall",
+  "session_hint": "the JWT authentication failures on the reporting service",
+  "question": "What did we rule out when debugging JWT authentication failures on the reporting service?",
+  "turns": [
+    [
+      "user",
+      "The reporting service is rejecting valid JWTs with 'invalid token' — the same tokens work on the analytics service. First suspect: clock skew causing the exp claim to appear expired."
+    ],
+    [
+      "user",
+      "Compared system time across all reporting service instances: max drift is 0.3 seconds. Our JWT library allows 60 seconds leeway for exp validation. Clock skew is definitively not causing rejections, ruling it out."
+    ],
+    [
+      "user",
+      "Checked the signing key next — maybe the reporting service has a stale JWKS after a recent key rotation. Decoded the JWT header: algorithm is RS256 with kid 'auth-2024-03'. Both services fetch JWKS from the same URL and the kid is present in both. Key mismatch is not the issue."
+    ],
+    [
+      "user",
+      "Found it: the reporting service validates the aud claim against 'reporting.internal' but the auth server issues tokens with aud set to 'analytics.internal' because the service was cloned from analytics without updating the AUDIENCE env var. Fixed the env var and authentication worked immediately."
+    ]
+  ],
+  "expect": {
+    "ruled_out_contains": [
+      "clock skew",
+      "signing"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "id": "ro-13",
+  "category": "ruled_out_recall",
+  "session_hint": "the Elasticsearch aggregation query slowness investigation on the product catalog",
+  "question": "What did we rule out when investigating slow Elasticsearch aggregation queries on the product catalog index?",
+  "turns": [
+    [
+      "user",
+      "Terms aggregations on the product catalog index are taking 8–12 seconds for 10 million documents. First suspicion: shard count is too low so each shard must process too many documents sequentially."
+    ],
+    [
+      "user",
+      "Current setup is 5 primary shards at 2M docs each. Created a test index with 20 shards and reindexed a sample dataset — query time was nearly identical at 9.2 seconds. Shard count is not the bottleneck, ruling it out."
+    ],
+    [
+      "user",
+      "Checked the fielddata circuit breaker next — perhaps fielddata is getting evicted constantly causing reloads. Circuit breaker trip count is zero in node stats. Fielddata cache hit rate is 95%. Cache eviction pressure is not the issue."
+    ],
+    [
+      "user",
+      "Found it: the 'category' field is mapped as 'text' with fielddata: true instead of 'keyword'. Text fields with fielddata load per-segment tokenized term data into heap, bypassing doc_values. Reindexed with 'category' as a 'keyword' field — aggregation time fell from 10 seconds to 380ms."
+    ]
+  ],
+  "expect": {
+    "ruled_out_contains": [
+      "shard count",
+      "fielddata"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

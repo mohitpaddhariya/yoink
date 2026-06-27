@@ -1,0 +1,26 @@
+{
+  "id": "lt-08",
+  "category": "long_transcript_stress",
+  "session_hint": "the Kubernetes Java pod OOM kill investigation",
+  "question": "What did we conclude was causing the Kubernetes pods to be OOM killed?",
+  "turns": [
+    ["user", "Java service pods getting OOM killed every 4-6 hours in Kubernetes. Container memory limit is 2Gi. kubectl describe pod shows OOMKilled as the exit reason."],
+    ["user", "Suspected a heap leak in application code. Profiled with async-profiler over 2 hours. No abnormal object retention, heap collection looks normal. Memory leak in app code ruled out."],
+    ["user", "Checked OS page cache inside the container via /proc/meminfo: substantial but that's expected given our file I/O. Page cache is reclaimed by the kernel under pressure before OOM would trigger. Not the cause."],
+    ["user", "Looked at the container resource limits in the Deployment spec — memory: 2Gi is correctly set. The spec itself is not misconfigured."],
+    ["user", "Found the root cause: the JVM is started without -Xmx. Without an explicit max heap flag, the JVM applies its default ergonomics — 25% of the total system memory visible to it. On our 16GB nodes, that's 4GB max heap, which is double the container's 2Gi limit. The JVM happily grows the heap toward 4GB, crosses the container limit, and the OOM killer fires."],
+    ["user", "This also explains the gradual onset — JVM heap grows slowly under load over several hours until it crosses the container boundary."],
+    ["user", "Fix: add -Xmx1500m -Xms512m to JVM_OPTS in the container spec, leaving 500MB headroom for off-heap memory, metaspace, and thread stacks within the 2Gi limit."],
+    ["user", "Deployed. Pods running clean — monitored for 8 hours, no OOM kills. JVM heap visible via JMX stays below 1.5GB as expected."],
+    ["user", "Application code memory leak definitively ruled out by profiler. OS page cache is a red herring — it's reclaimed before kernel OOM triggers anyway."],
+    ["user", "Also updated our container base image to always set -Xmx to 75% of the container memory limit via a startup script that reads the cgroups limit. Prevents recurrence on any new service."],
+    ["user", "Filed a runbook update: any Java container OOM in K8s — check -Xmx before anything else."]
+  ],
+  "expect": {
+    "conclusion_contains": ["-Xmx", "JVM", "heap"],
+    "conclusion_excludes": ["page cache"],
+    "ruled_out_contains": ["memory leak", "page cache"],
+    "answer_confidence_in": ["high", "medium"],
+    "no_conclusion": false
+  }
+}

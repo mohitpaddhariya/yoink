@@ -1,0 +1,42 @@
+{
+  "id": "de-08",
+  "category": "dead_end_suppression",
+  "session_hint": "the Stripe webhook duplicate charge investigation",
+  "question": "What was causing duplicate charges from Stripe webhook events?",
+  "turns": [
+    [
+      "user",
+      "We're seeing duplicate charges for ~2% of transactions. Each charge appears exactly twice in our DB, 35 seconds apart. First theory: our HTTP client has automatic retry configured and is resending the payment confirmation request."
+    ],
+    [
+      "user",
+      "Audited the Axios config in payment-service — no retry adapter installed, timeout set to 10 seconds, no interceptors that retry on failure. Checked nginx access logs: only one inbound request per duplicate pair. HTTP client retry is not the cause. Ruling it out."
+    ],
+    [
+      "user",
+      "Second theory: the AWS ALB health check is hitting /webhooks/stripe accidentally alongside /health. Checked ALB target group config — health check path is strictly /health and the access log shows no health check requests hitting the webhook endpoint. Ruling out health check interference."
+    ],
+    [
+      "user",
+      "Dug into the Stripe dashboard event logs. Stripe sends a webhook and waits for a 200 response within 30 seconds. Our handler does synchronous payment processing that takes 32-40 seconds before returning 200. Stripe interprets the delay as a delivery failure and retries the event. We never check the Stripe event ID for idempotency before processing. Added a guard: before processing, query the charges table for the Stripe event_id — if already processed, return 200 immediately. Duplicates dropped to zero. Root cause: missing idempotency check on Stripe event_id combined with slow handler triggering Stripe's own retry."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "idempotency",
+      "event_id"
+    ],
+    "conclusion_excludes": [
+      "health check"
+    ],
+    "ruled_out_contains": [
+      "retry",
+      "health check"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

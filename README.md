@@ -7,7 +7,7 @@
 <p align="center"><em>It already figured this out. Just ask it.</em></p>
 
 <p align="center">
-recalls the answer, not the whole transcript · ~300 words back, not 300,000 · 3–18× cheaper than reading it yourself · read-only, never interrupts
+recalls the answer, not the whole transcript · a paragraph back, not the transcript · 3–7× cheaper than reading it yourself · read-only, never interrupts
 </p>
 
 ---
@@ -50,10 +50,12 @@ separate, cheap step and hands back a paragraph.
 
 | The other session is… | Read it yourself | yoink |
 |---|---|---|
-| small | $0.01 | $0.02 |
-| medium | $0.41 | **$0.12** |
-| big | $1.34 | **$0.08** |
-| huge | won't fit | **just works** |
+| small (~5K) | $0.18 | **$0.04** |
+| medium (~25K) | $0.50 | **$0.08** |
+| big (~100K) | $1.71 | **$0.23** |
+| huge (>1M) | won't fit | **just works** |
+
+<sub>"Read it yourself" = a model reads the whole transcript (Opus) to answer; "yoink" = the Haiku recall. Measured `total_cost_usd`, both. yoink also hands back ~700 tokens instead of the whole transcript.</sub>
 
 ## How it works
 
@@ -99,6 +101,9 @@ uv run yoink-ask --all "staging" "how do I access the server?"
 
 **What if it grabs the wrong session?** It tells you which one it used; if your hint is ambiguous it
 asks you to pick.
+
+**Does it actually work?** Across 100 recall tasks, yoink never once reported a ruled-out dead end as
+the answer, and never invented a conclusion when a session hadn't reached one. See `benchmark/`.
 
 **Is "cheaper" real?** Measured on real sessions, both ways. See `benchmark/`.
 

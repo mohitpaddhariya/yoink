@@ -1,0 +1,42 @@
+{
+  "id": "de-16",
+  "category": "dead_end_suppression",
+  "session_hint": "the WebSocket connection drop investigation in the live dashboard",
+  "question": "What was causing WebSocket connections to drop every 30 seconds in the live dashboard?",
+  "turns": [
+    [
+      "user",
+      "WebSocket connections in our React live dashboard disconnect every 28-35 seconds. The client reconnects immediately and everything works, but it causes a visible flicker. First theory: the Tornado WebSocket server has an idle timeout set too aggressively."
+    ],
+    [
+      "user",
+      "Checked Tornado WebSocket handler config: websocket_ping_interval is not set, websocket_ping_timeout defaults to 30s but no pings are being sent. The server-side idle connection timeout is 120 seconds in the application settings. Server is not initiating the close. Ruling out server-side idle timeout."
+    ],
+    [
+      "user",
+      "Second theory: the AWS ALB in front of the service is closing idle connections. Default ALB idle timeout is 60 seconds. But the drops happen at exactly 30 seconds, not 60. Increased ALB idle timeout to 300 seconds anyway — drops continue at 30-second intervals. Ruling out ALB timeout."
+    ],
+    [
+      "user",
+      "Reproduced the issue on a direct EC2 connection bypassing the ALB entirely — same 30-second drops. Then tested from a mobile hotspot instead of office WiFi: no drops at all. Checked the office firewall rules with the network team: a Cisco ASA firewall is configured to terminate TCP flows idle for 30 seconds as part of a hardened security policy. Adding server-side WebSocket ping frames every 15 seconds (Tornado websocket_ping_interval=15) keeps the TCP flow active and prevents the firewall from terminating it. Root cause: corporate firewall dropping idle TCP connections after 30 seconds; fixed with server-sent ping frames."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "firewall",
+      "ping"
+    ],
+    "conclusion_excludes": [
+      "alb"
+    ],
+    "ruled_out_contains": [
+      "idle timeout",
+      "alb"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

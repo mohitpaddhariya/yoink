@@ -1,0 +1,17 @@
+{
+  "id": "cr-04",
+  "category": "conclusion_recall",
+  "session_hint": "the landing page CLS score investigation",
+  "question": "What did we conclude was causing the high Cumulative Layout Shift score on the landing page?",
+  "turns": [
+    ["user", "Our landing page CLS score is 0.34 in Lighthouse — well above the 0.1 good threshold. There's a visible layout jump about 200ms after initial paint. Need to identify and fix the cause."],
+    ["user", "Checked all images: every img element has explicit width and height attributes. No dynamically injected banners or ads. All fixed-height hero sections."],
+    ["user", "Noticed the custom web font (InterVariable from our own CDN) loads after the initial render. Our @font-face declarations have no font-display property set. Without font-display: swap, the browser holds a fallback font in layout then shifts the entire page when InterVariable arrives."],
+    ["user", "Added font-display: swap to all four @font-face rules. CLS dropped to 0.03. Root cause: missing font-display: swap causing a layout shift when the web font replaced the fallback."]
+  ],
+  "expect": {
+    "conclusion_contains": ["font-display", "swap"],
+    "answer_confidence_in": ["high", "medium"],
+    "no_conclusion": false
+  }
+}

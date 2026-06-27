@@ -1,0 +1,42 @@
+{
+  "id": "de-13",
+  "category": "dead_end_suppression",
+  "session_hint": "the Node.js email queue processor memory growth investigation",
+  "question": "What was causing the Node.js email queue processor memory to grow without bound?",
+  "turns": [
+    [
+      "user",
+      "Our Node.js 18 email queue worker's RSS climbs from 120MB to 2GB over about 6 hours and then crashes. First theory: closures inside the processJob function are retaining large email body strings after each job completes."
+    ],
+    [
+      "user",
+      "Took V8 heap snapshots at 30-minute intervals using --inspect and Chrome DevTools Memory tab. String objects in the heap stay constant at ~8MB. GC is collecting email body strings correctly after each job finishes. No closure retention visible. Ruling out closure-retained strings."
+    ],
+    [
+      "user",
+      "Second theory: EventEmitter listeners are accumulating — the job processor calls emitter.on('data', ...) per job without a matching removeListener. Checked listenerCount(emitter, 'data') after each job — it stays at exactly 3 (three permanent handlers added at startup). No listener accumulation. Ruling out EventEmitter listener leak."
+    ],
+    [
+      "user",
+      "Found the actual bug by diffing heap snapshots on the Timers category. Timer count grows by exactly 1 per job processed — now at 14,000 timers after 14,000 jobs. Traced to a metrics helper called inside processJob: `setInterval(() => recordMetrics(jobId), 1000)` — it creates a new interval for every job but the return value is discarded and clearInterval is never called. Each dangling interval holds a reference to the jobId closure. Fixed by storing the timer handle and calling clearInterval after job completion. Memory stabilized at 130MB. Root cause: setInterval created per job with no corresponding clearInterval, accumulating dangling timers."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "setinterval",
+      "clearinterval"
+    ],
+    "conclusion_excludes": [
+      "eventemitter"
+    ],
+    "ruled_out_contains": [
+      "closure",
+      "eventemitter"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

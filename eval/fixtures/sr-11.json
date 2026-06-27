@@ -1,0 +1,16 @@
+{
+  "id": "sr-11",
+  "category": "session_resolution",
+  "session_hint": "the oauth pkce login failing after navigating away",
+  "question": "What did we conclude caused the OAuth PKCE token exchange to return invalid_grant?",
+  "turns": [
+    ["user", "Our SPA's OAuth2 login with PKCE randomly returns 'invalid_grant' on the token exchange step. It happens most often when users click a link or navigate to another route between initiating login and the authorization callback."],
+    ["user", "We store the code_verifier in sessionStorage before redirecting to the authorization server. On callback we read it back to send with the token request. Could navigation be clearing sessionStorage?"],
+    ["user", "Confirmed: certain browser/OS combinations (notably Safari on iOS in private mode, and some Android WebViews) clear sessionStorage during cross-origin redirects or when the tab transitions states mid-flow. The authorization server redirects back but the code_verifier is gone, so we send an empty verifier and the token exchange fails with invalid_grant. Fix: store the code_verifier in localStorage instead of sessionStorage, keyed by the OAuth state parameter, and clean it up after a successful exchange."]
+  ],
+  "expect": {
+    "conclusion_contains": ["code_verifier", "sessionStorage", "cleared"],
+    "answer_confidence_in": ["high", "medium"],
+    "no_conclusion": false
+  }
+}

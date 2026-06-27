@@ -1,0 +1,42 @@
+{
+  "id": "de-11",
+  "category": "dead_end_suppression",
+  "session_hint": "the TLS handshake failure on Android clients investigation",
+  "question": "What was causing TLS handshake failures for Android clients connecting to the payment API?",
+  "turns": [
+    [
+      "user",
+      "Android users on app version 4.2+ are getting 'javax.net.ssl.SSLHandshakeException: Trust anchor for certification path not found' when hitting the payment API. Desktop browsers and iOS work fine. First theory: the certificate is expired or about to expire."
+    ],
+    [
+      "user",
+      "Ran `openssl s_client -connect payments.example.com:443` and checked the certificate: valid from 2025-03-01 to 2026-09-01. openssl verify returns OK. Not expired. Ruling out certificate expiry."
+    ],
+    [
+      "user",
+      "Second theory: the Android TLS stack on older devices doesn't support the cipher suite negotiated by the server (TLS_AES_256_GCM_SHA384). Temporarily configured nginx to prefer TLS 1.2 with ECDHE-RSA-AES128-GCM-SHA256. Android errors unchanged, same handshake failure. Ruling out cipher suite incompatibility."
+    ],
+    [
+      "user",
+      "Ran `openssl s_client -showcerts -connect payments.example.com:443` and saw only one certificate in the chain — just the leaf cert, the Let's Encrypt R11 intermediate is not being served. Desktop browsers cache intermediates via AIA fetching; Android's TrustManager does not perform AIA fetching and requires the full chain to be served. Added the full chain (fullchain.pem) to the nginx ssl_certificate directive. Android clients connected immediately after deploy. Root cause: intermediate certificate missing from the served TLS chain."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "intermediate",
+      "chain"
+    ],
+    "conclusion_excludes": [
+      "cipher"
+    ],
+    "ruled_out_contains": [
+      "expiry",
+      "cipher suite"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

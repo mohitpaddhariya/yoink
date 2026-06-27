@@ -1,0 +1,42 @@
+{
+  "id": "de-01",
+  "category": "dead_end_suppression",
+  "session_hint": "the slow Postgres reporting endpoint investigation",
+  "question": "What did we conclude was causing the slow response times on the reporting endpoint?",
+  "turns": [
+    [
+      "user",
+      "Investigating the /api/reports/monthly endpoint — it's taking 12-18 seconds per request in production. My first guess is a missing index on the orders table since we never added one for the created_at range filter."
+    ],
+    [
+      "user",
+      "Checked with \\EXPLAIN ANALYZE — there's already a btree index on orders(created_at) and the planner is using it (Index Scan, cost 0.43..8.12). Query planner is fine. Missing index theory ruled out."
+    ],
+    [
+      "user",
+      "Next thought: table bloat. The orders table is 400M rows, VACUUM hasn't run in 3 weeks. But pg_stat_user_tables shows n_dead_tup at only 12k — less than 0.01%. Autovacuum is healthy, no bloat. Ruling out table bloat."
+    ],
+    [
+      "user",
+      "Finally traced the actual code. For each of the 2,000 order rows returned, the Ruby service issues a separate SELECT to fetch the customer record — classic N+1 query. Adding eager loading with a single JOIN dropped response time from 14s to 180ms. Root cause confirmed: N+1 query pattern against the customers table."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "n+1",
+      "eager"
+    ],
+    "conclusion_excludes": [
+      "bloat"
+    ],
+    "ruled_out_contains": [
+      "missing index",
+      "table bloat"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

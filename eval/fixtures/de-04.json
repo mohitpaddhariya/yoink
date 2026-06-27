@@ -1,0 +1,42 @@
+{
+  "id": "de-04",
+  "category": "dead_end_suppression",
+  "session_hint": "the React analytics dashboard scroll freeze investigation",
+  "question": "What was causing the analytics dashboard to freeze on scroll?",
+  "turns": [
+    [
+      "user",
+      "The analytics dashboard in React freezes for 800-1200ms every time a user scrolls quickly. First theory: too many DOM nodes — the table renders all 50,000 rows at once without virtualization."
+    ],
+    [
+      "user",
+      "Added react-window virtualization so only ~30 rows render at a time. DOM node count in DevTools dropped from 150,000 to 400. Scroll still freezes identically. Virtualization wasn't the problem, ruling out DOM node count."
+    ],
+    [
+      "user",
+      "Second theory: CSS box-shadow on table rows forcing GPU compositing thrash. Removed all box-shadow and transition styles from rows. No change in freeze duration. Ruling out CSS rendering as the cause."
+    ],
+    [
+      "user",
+      "Profiled with Chrome DevTools Performance tab. The Main thread shows a 'scroll' event firing 120 times/second, each calling recalculateAggregates() which iterates over all 50,000 raw data points to compute totals. No throttling at all. Adding a 100ms lodash throttle on the scroll handler and memoizing the aggregate result with useMemo eliminated the freeze entirely. Root cause: unthrottled scroll handler recalculating heavy aggregates on every scroll event."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "throttl",
+      "scroll handler"
+    ],
+    "conclusion_excludes": [
+      "box-shadow"
+    ],
+    "ruled_out_contains": [
+      "dom node",
+      "box-shadow"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

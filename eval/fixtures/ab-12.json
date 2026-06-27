@@ -1,0 +1,31 @@
+{
+  "id": "ab-12",
+  "category": "abstention",
+  "session_hint": "the gRPC connection drops during rolling deployments",
+  "question": "What was causing gRPC connections to drop during rolling deployments of the recommendation service?",
+  "turns": [
+    [
+      "user",
+      "During rolling deploys of the recommendation service, clients see a spike of UNAVAILABLE errors lasting 15-20 seconds per pod replacement. We use client-side round-robin load balancing with service discovery. The errors stop after the pod is fully gone."
+    ],
+    [
+      "user",
+      "The old pod seems to stop accepting new connections but in-flight RPCs don't drain before SIGTERM. Our terminationGracePeriodSeconds is 30s but the preStop hook just does a 5-second sleep, which means the pod exits before in-flight RPCs can complete."
+    ],
+    [
+      "user",
+      "Added SIGTERM handling to call grpc.Server.tryShutdown() which waits for in-flight calls to complete before closing. Deployed to staging. Error spike dropped from ~18 seconds to ~6 seconds — meaningful improvement but errors didn't go to zero."
+    ],
+    [
+      "user",
+      "A second hypothesis explains the remaining 6 seconds: the client-side DNS resolver caches the endpoint list and has a 30-second TTL. Clients might keep routing to the terminating pod for up to 30 seconds even after it stops responding. Added resolver refresh-on-error logic but haven't deployed that change yet."
+    ],
+    [
+      "user",
+      "The tryShutdown change helped but the situation is still not understood — errors went down but not to zero, and the resolver TTL fix hasn't been tested. Can't tell whether the remaining errors are from the resolver lag, an edge case in tryShutdown, or something else. Better but not resolved."
+    ]
+  ],
+  "expect": {
+    "no_conclusion": true
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "id": "ro-02",
+  "category": "ruled_out_recall",
+  "session_hint": "the Kafka consumer group lag investigation",
+  "question": "What did we try and rule out when diagnosing the Kafka consumer group lag?",
+  "turns": [
+    [
+      "user",
+      "Our Kafka consumer group 'order-processor' is falling 2 million messages behind during business hours. First hunch: the producer is sending too fast for the topic's 12 partitions."
+    ],
+    [
+      "user",
+      "Checked producer metrics: throughput is 8k msg/s, well within what 12 partitions can handle. Also confirmed broker CPU sits at 30% with no disk saturation. Ruling out producer throughput and broker resource pressure."
+    ],
+    [
+      "user",
+      "Looked at partition count next — maybe we need more parallelism. But we already have 12 partitions and 12 consumer instances, one-to-one. Adding partitions won't help if consumers themselves are slow."
+    ],
+    [
+      "user",
+      "Found it: max.poll.interval.ms is set to 5000ms but each message batch takes 6–8 seconds to process. The coordinator thinks consumers are dead, triggers rebalance, and during rebalance nobody consumes. Bumped max.poll.interval.ms to 30000 and lag cleared within minutes."
+    ]
+  ],
+  "expect": {
+    "ruled_out_contains": [
+      "producer throughput",
+      "broker",
+      "partition"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

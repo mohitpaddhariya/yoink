@@ -1,0 +1,17 @@
+{
+  "id": "cr-08",
+  "category": "conclusion_recall",
+  "session_hint": "the S3 asset 403 error investigation",
+  "question": "What did we conclude was causing 403 errors when the frontend loaded static assets from S3?",
+  "turns": [
+    ["user", "Users are seeing broken images and missing CSS. Browser devtools show HTTP 403 Forbidden for every request to our assets.example-cdn.com S3 bucket. Started after infra applied a new bucket policy yesterday afternoon."],
+    ["user", "The bucket is in us-east-1. Objects exist — I can download them via the AWS Console with my IAM credentials. The 403s only affect unauthenticated public HTTP requests from browsers."],
+    ["user", "Inspected the new bucket policy JSON. The previous policy had a Statement granting Effect: Allow, Principal: *, Action: s3:GetObject for the entire bucket. The updated policy removed that statement entirely — it now only allows access from a specific IAM role, blocking all public reads."],
+    ["user", "Re-added the s3:GetObject allow for Principal: * scoped to the /assets/* prefix. 403s cleared immediately. Root cause: bucket policy update removed the public s3:GetObject permission for anonymous access."]
+  ],
+  "expect": {
+    "conclusion_contains": ["s3:getobject", "bucket policy"],
+    "answer_confidence_in": ["high", "medium"],
+    "no_conclusion": false
+  }
+}

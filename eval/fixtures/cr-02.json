@@ -1,0 +1,34 @@
+{
+  "id": "cr-02",
+  "category": "conclusion_recall",
+  "session_hint": "the Kafka consumer group lag investigation",
+  "question": "What did we conclude was causing the Kafka consumer group lag to grow unboundedly?",
+  "turns": [
+    [
+      "user",
+      "The orders-processing consumer group on our Kafka cluster (v3.4) has been building lag since Wednesday. Topic is orders-v2, we have 12 consumer instances running. Lag is now 2.1M messages and climbing."
+    ],
+    [
+      "user",
+      "Checked consumer CPU and memory: all 12 instances healthy, each processing around 75 msg/s. Combined throughput is about 900 msg/s. Producer side is pushing 950 msg/s — barely treading water."
+    ],
+    [
+      "user",
+      "Looked at the topic config: orders-v2 has only 1 partition. Only one consumer in the group can ever read; the other 11 are sitting completely idle."
+    ],
+    [
+      "user",
+      "That's the root cause. With a single partition we're capped at one consumer's throughput regardless of how many instances we run. Increased to 16 partitions and lag drained to zero in under 30 minutes."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "partition"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}

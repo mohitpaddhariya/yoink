@@ -1,0 +1,24 @@
+{
+  "id": "lt-13",
+  "category": "long_transcript_stress",
+  "session_hint": "the mobile layout breakage on the checkout page investigation",
+  "question": "What was the root cause of the layout breaking on mobile devices on the checkout page?",
+  "turns": [
+    ["user", "Mobile users seeing broken layout on the checkout page — everything is tiny and unscrollable. Desktop looks fine. The root cause is already clear: the checkout page template is missing the viewport meta tag. Mobile browsers fall back to a default 980px layout width and then scale the page down to fit, making all content unreadably small."],
+    ["user", "Double-checked media query ordering in our main stylesheet anyway — all breakpoints are correct and @media (max-width: 768px) rules are present with the right specificity. Not being overridden by anything."],
+    ["user", "Looked at flex vs grid usage on the checkout page — it uses a mix of both but both are well-supported on all mobile browsers we target. Layout model is not the cause."],
+    ["user", "Investigated font-size inheritance: a few rem values look like they could cascade oddly, but reducing them doesn't change the zoomed-out viewport behavior. Font sizes are not causing the layout collapse."],
+    ["user", "Confirmed the fix: adding <meta name='viewport' content='width=device-width, initial-scale=1'> to the checkout template makes the layout render correctly at all tested screen sizes immediately."],
+    ["user", "Traced the omission: the checkout page was built two weeks ago from a new template that was created from scratch rather than extending the base layout template. All other pages use the base template which already has the viewport tag."],
+    ["user", "Media queries, flex/grid, and font-size inheritance all verified as correct — none are contributing to the issue."],
+    ["user", "Deployed the viewport meta tag fix. Mobile checkout layout renders correctly on Android and iOS."],
+    ["user", "Added a Playwright test that checks for the viewport meta tag on every page in our sitemap. Will catch any future template that omits it."]
+  ],
+  "expect": {
+    "conclusion_contains": ["viewport meta tag", "missing"],
+    "conclusion_excludes": ["font-size"],
+    "ruled_out_contains": ["media query", "font-size", "flex"],
+    "answer_confidence_in": ["high", "medium"],
+    "no_conclusion": false
+  }
+}

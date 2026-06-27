@@ -1,0 +1,42 @@
+{
+  "id": "de-15",
+  "category": "dead_end_suppression",
+  "session_hint": "the API rate limiter false throttling investigation",
+  "question": "What was causing legitimate users to be throttled by the rate limiter?",
+  "turns": [
+    [
+      "user",
+      "The public REST API rate limiter is throttling legitimate users at around 50 requests per minute even though the configured limit is 200 req/min per user. First theory: the 200 req/min threshold is still too low for power users doing bulk exports."
+    ],
+    [
+      "user",
+      "Raised the limit to 500 req/min in the config and redeployed. Same users still hit the limit well below 200 actual requests. The threshold itself is not the issue since they're throttled before reaching it. Ruling out threshold being too low."
+    ],
+    [
+      "user",
+      "Second theory: multiple users from the same corporate NAT share one IP and collectively exhaust the per-IP bucket. Checked affected users — they span residential ISPs across 6 different countries with no shared infrastructure. Not a shared-IP problem. Ruling out corporate nat as the cause."
+    ],
+    [
+      "user",
+      "Inspected the rate limiter middleware in api-gateway. The Redis bucket key is built from `request.remote_addr`. But api-gateway sits behind an Nginx reverse proxy in the same VPC. Every inbound request arrives at api-gateway from the proxy's internal IP (10.0.0.7), not the real client IP. All customers share a single bucket keyed to 10.0.0.7 — the bucket exhausts after 200 requests total across all users. Fixed by keying on the X-Forwarded-For header (first hop). Throttling resolved immediately. Root cause: rate limiter keyed on REMOTE_ADDR of the reverse proxy instead of the real client IP from X-Forwarded-For."
+    ]
+  ],
+  "expect": {
+    "conclusion_contains": [
+      "remote_addr",
+      "x-forwarded-for"
+    ],
+    "conclusion_excludes": [
+      "corporate nat"
+    ],
+    "ruled_out_contains": [
+      "threshold",
+      "corporate nat"
+    ],
+    "answer_confidence_in": [
+      "high",
+      "medium"
+    ],
+    "no_conclusion": false
+  }
+}
