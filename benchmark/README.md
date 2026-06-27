@@ -50,4 +50,4 @@ uv run --with matplotlib python benchmark/plot_cost.py   # regenerates cost.png
 ```
 
 Native = transcript tokens × $5/MTok (Opus input). yoink = measured `total_cost_usd` from the
-forked `--resume` recall (Haiku). Dead-end quality: `YOINK_MODEL=claude-haiku-4-5 uv run python run_eval.py`.
+forked `--resume` recall (Haiku). Dead-end quality: `YOINK_MODEL=claude-haiku-4-5 uv run python eval/run_eval.py`.

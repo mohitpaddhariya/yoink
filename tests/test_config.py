@@ -1,6 +1,6 @@
 import json
 
-import config
+import yoink.config as config
 
 
 def test_defaults_when_no_file_or_env(monkeypatch, tmp_path):

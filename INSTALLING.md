@@ -14,7 +14,7 @@ conclusion on demand — read-only, with provenance.
 ```bash
 git clone https://github.com/mohitpaddhariya/yoink && cd yoink
 uv sync
-uv run python install.py
+uv run yoink-install
 ```
 
 The installer:
@@ -30,7 +30,7 @@ The installer:
 Non-interactive / scripted:
 
 ```bash
-uv run python install.py --model claude-haiku-4-5 --scope user --yes
+uv run yoink-install --model claude-haiku-4-5 --scope user --yes
 ```
 
 Flags: `--model <id>`, `--scope user|local`, `--claude-md <path>`, `--no-mcp`, `--no-claude-md`, `--yes`.
@@ -39,8 +39,8 @@ Flags: `--model <id>`, `--scope user|local`, `--claude-md <path>`, `--no-mcp`, `
 
 ```bash
 uv sync
-claude mcp add --scope user yoink -- uv run --directory "$(pwd)" python broker.py
-uv run python broker.py --health        # expect: OK: …
+claude mcp add --scope user yoink -- uv run --directory "$(pwd)" yoink
+uv run yoink --health        # expect: OK: …
 ```
 
 Then add this to your global CLAUDE.md (`$CLAUDE_CONFIG_DIR/CLAUDE.md`) so it triggers automatically:
@@ -64,8 +64,8 @@ follows `CLAUDE_CONFIG_DIR` automatically.
 
 - **In a Claude session:** start a **new** session (MCP servers load at startup), then ask naturally —
   *"what did the auth session conclude about token refresh?"* Confirm it's loaded with `/mcp`.
-- **From the terminal:** `uv run python ask.py --all "<topic>" "<question>"`.
-- **Health:** `uv run python broker.py --health`.
+- **From the terminal:** `uv run yoink-ask --all "<topic>" "<question>"`.
+- **Health:** `uv run yoink --health`.
 
 ## Uninstall
 

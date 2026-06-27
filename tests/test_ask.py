@@ -1,5 +1,5 @@
-import ask
-import broker
+import yoink.cli as ask
+import yoink.server as broker
 
 
 def test_ask_cli_invokes_recall_and_prints(monkeypatch, capsys):

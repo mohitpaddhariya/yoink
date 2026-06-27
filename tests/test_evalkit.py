@@ -1,7 +1,7 @@
 import json
 
 from evalkit import Fixture, build_eval_prompt, grade, load_fixtures
-from prompts import RecallAnswer
+from yoink.prompts import RecallAnswer
 
 
 def _fixture(**overrides) -> Fixture:

@@ -1,8 +1,8 @@
 import pytest
 
-import provenance
-from prompts import RecallAnswer
-from resolver import Candidate
+import yoink.provenance as provenance
+from yoink.prompts import RecallAnswer
+from yoink.resolver import Candidate
 
 NOW = 1_000_000.0
 

@@ -1,4 +1,4 @@
-import install
+import yoink.install as install
 
 
 def test_patch_claude_md_creates_when_absent(tmp_path):

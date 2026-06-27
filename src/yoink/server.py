@@ -14,11 +14,7 @@ import sys
 
 from fastmcp import FastMCP
 
-import answerer
-import config
-import prompts
-import provenance
-import resolver
+from . import answerer, config, prompts, provenance, resolver
 
 mcp = FastMCP("yoink")
 

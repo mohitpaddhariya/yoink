@@ -18,9 +18,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-import config
+from . import config
 
-REPO = Path(__file__).resolve().parent
+REPO = Path(__file__).resolve().parents[2]
 
 BEGIN = "<!-- yoink:begin (managed by yoink install) -->"
 END = "<!-- yoink:end -->"
@@ -85,7 +85,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.no_mcp:
         cmd = ["claude", "mcp", "add", "--scope", args.scope, "yoink", "--",
-               "uv", "run", "--directory", str(REPO), "python", str(REPO / "broker.py")]
+               "uv", "run", "--directory", str(REPO), "yoink"]
         code, line = _run(cmd)
         print(("✓ " if code == 0 else "✗ ") + f"claude mcp add ({args.scope}): {line}")
 
@@ -94,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
         action = patch_claude_md(target)
         print(f"✓ CLAUDE.md {action}: {target}")
 
-    code, line = _run(["uv", "run", "--directory", str(REPO), "python", str(REPO / "broker.py"), "--health"])
+    code, line = _run(["uv", "run", "--directory", str(REPO), "yoink", "--health"])
     print(("✓ " if code == 0 else "✗ ") + f"health: {line}")
     print("\nDone. Start a new Claude session and ask, e.g., \"what did the auth session conclude?\"")
     return 0
