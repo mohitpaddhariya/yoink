@@ -84,6 +84,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"✓ config written: {path}  (model={model})")
 
     if not args.no_mcp:
+        # idempotent: drop any prior registration so re-runs don't fail on "already exists"
+        _run(["claude", "mcp", "remove", "--scope", args.scope, "yoink"])
         cmd = ["claude", "mcp", "add", "--scope", args.scope, "yoink", "--",
                "uv", "run", "--directory", str(REPO), "yoink"]
         code, line = _run(cmd)
